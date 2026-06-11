@@ -1,0 +1,41 @@
+
+.ant-table-pagination {
+  display: block;
+  text-align: right;
+
+  .ant-pagination-total-text {
+    float: left;
+    color: #9a9c9e;
+  }
+}
+
+.ant-popover {
+  min-width: 150px;
+}
+
+.ant-table {
+
+  .ant-table-thead > tr > th {
+    padding: 14px 10px;
+    font-weight: 600;
+  }
+
+  .ant-table-tbody > tr > td, .ant-table tfoot > tr > th, .ant-table tfoot > tr > td {
+    padding: 10px;
+  }
+
+  .ant-table-tbody {
+
+    > tr:nth-child(2n) {
+
+      > td {
+        background-color: #fafafa;
+      }
+    }
+  }
+
+  .ant-btn-icon-only {
+    width: 28px;
+    height: 28px;
+  }
+}
