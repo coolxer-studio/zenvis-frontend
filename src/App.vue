@@ -19,4 +19,6 @@ export default {
 };
 </script>
 
-<style lang="scss"></style>
+<style lang="scss">
+/* 应用全局样式 */
+</style>
