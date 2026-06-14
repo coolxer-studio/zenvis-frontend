@@ -1,24 +1,24 @@
 <template>
-  <a-layout class="app-container">
-    <a-layout-header v-show="isShow" class="header">
+  <el-container class="app-container">
+    <el-header v-show="isShow" class="header">
       <nav-logo></nav-logo>
       <nav-menu></nav-menu>
-      <arrows-alt-outlined class="arrows-alt-outlined" @click="hideHeader"/>
-    </a-layout-header>
-    <a-layout class="drawer-body" id="drawer-body">
-      <a-layout-content class="app-body">
-        <shrink-outlined v-show="!isShow" class="shrink-outlined" @click="showHeader"/>
+    </el-header>
+    <el-container class="drawer-body" id="drawer-body">
+      <TopRight v-show="isShow" class="toggle-icon" @click="hideHeader"/>
+      <BottomLeft v-show="!isShow" class="toggle-icon" @click="showHeader"/>
+      <el-main class="app-body">
         <div class="layout-content-body no-scrollbar">
           <router-view></router-view>
         </div>
-      </a-layout-content>
-    </a-layout>
-  </a-layout>
+      </el-main>
+    </el-container>
+  </el-container>
 </template>
 
 <script setup lang="ts">
-  import {ref} from "vue";
-  import { ArrowsAltOutlined, ShrinkOutlined } from '@ant-design/icons-vue';
+  import {ref, onMounted, onUnmounted} from "vue";
+  import { TopRight, BottomLeft } from '@element-plus/icons-vue';
 
 
   import navMenu from './components/nav-menu.vue';
@@ -41,6 +41,20 @@
       document.exitFullscreen();
     }
   }
+  
+  const handleFullscreenChange = () => {
+    if (!document.fullscreenElement) {
+      isShow.value = true;
+    }
+  }
+  
+  onMounted(() => {
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+  })
+  
+  onUnmounted(() => {
+    document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  })
 </script>
 
 <style lang="scss" scoped>
@@ -51,6 +65,7 @@
     .header {
       padding: 0;
       position: relative;
+      background-color: #3988ff;
       .logo{
         width: 300px;
         height: 60px;
@@ -60,14 +75,20 @@
         padding-left: 20px;
         font-size: 26px;
       }
-      .arrows-alt-outlined{
-        position: absolute;
-        top: 70px;
-        right: 10px;
-        color: #e5e0e0;
-        font-size: 20px;
-        z-index: 999;
-      }
+    }
+  }
+  
+  .drawer-body {
+    position: relative;
+    .toggle-icon {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      color: #e5e0e0;
+      font-size: 20px;
+      z-index: 9999;
+      width: 25px;
+      height: 25px;
     }
   }
 
@@ -76,15 +97,8 @@
     box-sizing: border-box;
     overflow: hidden;
     background-color: #eaeaea;
+    padding: 0;
     position: relative;
-    .shrink-outlined{
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      color: #e5e0e0;
-      font-size: 20px;
-      z-index: 9999;
-    }
   }
 
   .layout-content-body {

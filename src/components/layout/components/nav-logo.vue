@@ -4,8 +4,8 @@
 
 <script lang="ts">
 import { defineComponent, ref, onMounted } from 'vue';
-import { SystemService } from '@/service/api/api-system';
-import { SystemInfo } from '@/service/types/type-system';
+import { SystemService } from '@/service/api';
+import { SystemInfo } from '@/types/type-system';
 
 export default defineComponent({
   name: 'Logo',

@@ -1,17 +1,17 @@
 <template>
-  <a-layout class="app-container">
-    <a-layout-header class="header">
+  <el-container class="app-container">
+    <el-header class="header">
       <nav-logo></nav-logo>
       <nav-menu></nav-menu>
-    </a-layout-header>
-    <a-layout class="drawer-body" id="drawer-body">
-      <a-layout-content class="app-body">
+    </el-header>
+    <el-container class="drawer-body" id="drawer-body">
+      <el-main class="app-body">
         <div class="layout-content-body no-scrollbar">
           <router-view></router-view>
         </div>
-      </a-layout-content>
-    </a-layout>
-  </a-layout>
+      </el-main>
+    </el-container>
+  </el-container>
 </template>
 
 <script setup lang="ts">
@@ -25,6 +25,7 @@
     height: 100%;
     .header {
       padding: 0;
+      background-color: #3988ff;
       .logo{
         width: 300px;
         height: 60px;
@@ -42,6 +43,7 @@
     box-sizing: border-box;
     overflow: hidden;
     background-color: #eaeaea;
+    padding: 0;
   }
 
   .layout-content-body {
