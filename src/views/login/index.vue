@@ -1,52 +1,51 @@
 <template>
   <div class="login-background"></div>
-  <div class="login_msg_tip">
+  <div class="login_msg_tip" :style="getBannerStyle()">
     <div class="msg_tip_box">
       <div class="login_tip_title">{{ systemInfo?.productName }}</div>
       <div class="login_tip_content">{{ systemInfo?.productIntroduction }}</div>
     </div>
   </div>
   <div class="login-form">
-    <a-form
+    <el-form
       :model="formLogin"
       name="login"
       autocomplete="off"
-      @finish="onFinish"
-      @finishFailed="onFinishFailed"
+      @submit.prevent="onFinish"
     >
       <div class="login-logo-title">
-        <div class="logo"></div>
+        <img v-if="systemInfo?.systemLogo" :src="getLogoUrl()" class="logo" />
+        <div v-else class="logo"></div>
         <div class="title">{{ systemInfo?.systemTitle }}</div>
       </div>
-      <a-form-item name="user_name" :rules="[{ required: true, message: '请输入账号' }]">
-        <a-input
+      <el-form-item prop="user_name" :rules="[{ required: true, message: '请输入账号', trigger: 'blur' }]">
+        <el-input
           class="login-input"
           size="large"
           placeholder="请输入账号"
-          v-model:value="formLogin.user_name"
-        >
-        </a-input>
-      </a-form-item>
+          v-model="formLogin.user_name"
+        />
+      </el-form-item>
 
-      <a-form-item name="password" :rules="[{ required: true, message: '请输入密码' }]">
-        <a-input-password
+      <el-form-item prop="password" :rules="[{ required: true, message: '请输入密码', trigger: 'blur' }]">
+        <el-input
           class="login-input"
           size="large"
+          type="password"
           placeholder="请输入密码"
-          v-model:value="formLogin.password"
-        >
-        </a-input-password>
-      </a-form-item>
+          v-model="formLogin.password"
+          show-password
+        />
+      </el-form-item>
 
-      <a-form-item name="auth_code" :rules="[{ required: true, message: '请输入验证码' }]">
+      <el-form-item prop="auth_code" :rules="[{ required: true, message: '请输入验证码', trigger: 'blur' }]">
         <div class="form-row form-code">
-          <a-input
+          <el-input
             class="login-input"
             size="large"
             placeholder="请输入验证码"
-            v-model:value="formLogin.auth_code"
-          >
-          </a-input>
+            v-model="formLogin.auth_code"
+          />
           <div class="code-img">
             <img
               class="login_auth_pic"
@@ -56,15 +55,15 @@
             />
           </div>
         </div>
-      </a-form-item>
+      </el-form-item>
 
-      <a-form-item :wrapper-col="{ offset: 0, span: 24 }">
-        <a-button class="throttle" size="large" block type="primary" html-type="submit" :loading="loginLoading"
-          >登 录</a-button
-        >
-        <a target="_blank" href="http://genie.coolxer.com/#/快速了解x-genie">接入指南</a>
-      </a-form-item>
-    </a-form>
+      <el-form-item>
+        <el-button class="throttle" size="large" type="primary" native-type="submit" :loading="loginLoading">
+          登 录
+        </el-button>
+        <a v-if="systemInfo?.integrateLink" target="_blank" :href="systemInfo.integrateLink">接入指南</a>
+      </el-form-item>
+    </el-form>
   </div>
   <div class="login-footer">
     {{ systemInfo?.copyright }}
@@ -74,10 +73,8 @@
 <script lang="ts">
 import { defineComponent, reactive, ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { useStore } from 'vuex';
-import { UserService } from '@/service/api/api-user';
-import { SystemService } from '@/service/api/api-system';
-import { SystemInfo } from '@/service/types/type-system';
+import { UserService, SystemService } from '@/service/api';
+import { SystemInfo } from '@/types/type-system';
 import JSEncrypt from 'jsencrypt';
 import { ls } from '@u/local-storage';
 
@@ -90,7 +87,6 @@ interface IFromLogin {
 export default defineComponent({
   name: 'ampLogin',
   setup() {
-    const store = useStore();
     const router = useRouter();
     const loginLoading = ref(false);
     const timestamp = ref(+new Date());
@@ -134,10 +130,6 @@ export default defineComponent({
       }
     };
 
-    const onFinishFailed = (errorInfo: any) => {
-      console.log('Failed:', errorInfo);
-    };
-
     const getSystemInfoFun = async () => {
       try {
         systemInfo.value = await SystemService.getSystemInfo();
@@ -148,6 +140,26 @@ export default defineComponent({
 
     const refreshCaptcha = () => {
       timestamp.value = +new Date();
+    };
+
+    const getLogoUrl = () => {
+      if (!systemInfo.value?.systemLogo) return '';
+      const url = systemInfo.value.systemLogo;
+      if (url.startsWith('http')) {
+        return `${url}?t=${Date.now()}`;
+      }
+      return `/x-genie${url.startsWith('/') ? '' : '/'}${url}?t=${Date.now()}`;
+    };
+
+    const getBannerStyle = () => {
+      if (!systemInfo.value?.systemBanner) {
+        return { background: 'url(@a/images/login_banner.png)' };
+      }
+      const url = systemInfo.value.systemBanner;
+      const bannerUrl = url.startsWith('http') 
+        ? `${url}?t=${Date.now()}`
+        : `/x-genie${url.startsWith('/') ? '' : '/'}${url}?t=${Date.now()}`;
+      return { background: `url(${bannerUrl})` };
     };
 
     // 初始化
@@ -161,8 +173,9 @@ export default defineComponent({
       loginLoading,
       captchaUrl,
       onFinish,
-      onFinishFailed,
       refreshCaptcha,
+      getLogoUrl,
+      getBannerStyle,
     };
   },
 });
@@ -171,7 +184,6 @@ export default defineComponent({
 <style lang="less" scoped>
 .login-background {
   width: 100vw;
-  //min-width: 1364px;
   height: 100vh;
   min-height: 600px;
   background-size: 100% 100%;
@@ -203,20 +215,23 @@ export default defineComponent({
       font-size: 14px;
       line-height: 24px;
       color: #6c8885;
-      white-space: pre-line; /* 解析并显示换行符 */
+      white-space: pre-line;
     }
   }
 }
 
 .throttle {
-  //height: 32px;
   box-sizing: border-box;
   font-size: 14px;
   background: #3988ff;
   color: #fff;
-  //line-height: 32px;
   text-align: center;
   cursor: pointer;
+  border-radius: 4px;
+  border: none;
+  height: 40px;
+  line-height: 40px;
+  width: 100%;
 }
 .login-footer {
   position: absolute;
@@ -243,8 +258,19 @@ export default defineComponent({
   align-items: center;
   flex-direction: column;
 
-  ::v-deep(.ant-form) {
+  :deep(.el-form) {
     width: 100%;
+    margin-bottom: 0;
+  }
+
+  :deep(.el-form-item) {
+    margin-bottom: 18px;
+    :deep(.el-form-item__label) {
+      display: none;
+    }
+    :deep(.el-form-item__content) {
+      margin-left: 0;
+    }
   }
 
   .login-logo-title {
@@ -252,12 +278,13 @@ export default defineComponent({
     align-items: center;
     background-color: white;
     padding: 20px;
+    padding-bottom: 40px;
     .logo {
       width: 50px;
       height: 50px;
       background: url('@a/images/icon-logo.png');
-      background-size: cover; /* 将背景图片调整为覆盖整个元素 */
-      background-repeat: no-repeat; /* 防止背景图片重复显示 */
+      background-size: cover;
+      background-repeat: no-repeat;
     }
     .title {
       margin-left: 20px;
@@ -266,33 +293,47 @@ export default defineComponent({
     }
   }
   .login-input {
-    //line-height: 32px;
-    //height: 32px;
-    // width: 400px;
     outline: none;
     font-size: 14px;
-    //text-indent: 10px;
     transition: 0.3s;
     box-sizing: border-box;
-    border: 1px solid #aeb7c9;
+    :deep(.el-input__wrapper) {
+      border: 1px solid #aeb7c9;
+      border-radius: 4px;
+      height: 40px;
+      box-shadow: none;
+      :hover {
+        border-color: #3988ff;
+      }
+      :focus-within {
+        border-color: #3988ff;
+        box-shadow: 0 0 0 2px rgba(57, 136, 255, 0.1);
+      }
+    }
+    :deep(.el-input__inner) {
+      font-size: 14px;
+      line-height: 1.5;
+      height: 28px;
+    }
   }
   .form-row {
     display: flex;
     align-items: center;
+    width: 100%;
 
-    .ant-input {
+    :deep(.el-input) {
       flex: 3;
     }
 
     .code-img {
       flex: 1;
-      height: 40.14px;
-      //background: rgb(187, 187, 187);
+      height: 40px;
       margin-left: 10px;
     }
     .login_auth_pic {
-      height: 39.14px;
-      border: 1px solid rgb(217, 215, 215);
+      height: 40px;
+      border: 1px solid #d9d9d9;
+      border-radius: 4px;
     }
 
     .form-btn {
@@ -303,7 +344,7 @@ export default defineComponent({
     font-size: 12px;
   }
   .form-code {
-    ::v-deep(.ant-input-affix-wrapper) {
+    :deep(.el-input__wrapper) {
       width: 150px;
     }
   }

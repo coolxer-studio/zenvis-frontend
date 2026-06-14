@@ -1,24 +1,47 @@
 <template>
-  <a-config-provider :locale="locale">
+  <el-config-provider :locale="locale">
     <router-view></router-view>
-  </a-config-provider>
+  </el-config-provider>
 </template>
 
 <script lang="ts">
-import locale from 'ant-design-vue/lib/locale-provider/zh_CN';
+import zhCn from 'element-plus/es/locale/lang/zh-cn';
 import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
+import { SystemService } from '@/service/api';
 
 dayjs.locale('zh-cn');
 
 export default {
   name: 'RootApp',
   setup() {
-    return { locale };
+    const updateFavicon = (iconUrl: string) => {
+      const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+      if (favicon && iconUrl) {
+        const timestamp = Date.now();
+        const fullUrl = iconUrl.startsWith('http')
+          ? `${iconUrl}?t=${timestamp}`
+          : `/x-genie${iconUrl.startsWith('/') ? '' : '/'}${iconUrl}?t=${timestamp}`;
+        favicon.href = fullUrl;
+      }
+    };
+
+    const loadSystemInfo = async () => {
+      try {
+        const res: any = await SystemService.getSystemInfo();
+        if (res?.systemIcon) {
+          updateFavicon(res.systemIcon);
+        }
+      } catch (error) {
+        console.error('获取系统信息失败:', error);
+      }
+    };
+
+    loadSystemInfo();
+
+    return { locale: zhCn };
   },
 };
 </script>
 
-<style lang="scss">
-/* 应用全局样式 */
-</style>
+<style lang="scss"></style>
