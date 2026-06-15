@@ -1,19 +1,69 @@
 import { request } from '@/service/request-wrapper';
-import { SystemInfo ,Dashboard } from '@/service/types/type-system';
+import { SystemInfo ,Dashboard } from '@/types/type-system';
 const prefix = '/api/v1/system';
 
 export class SystemService {
   static async getSystemInfo(): Promise<SystemInfo> {
-    const response = await request<Object>(`${prefix}/about/info`, '', 'GET');
+    const res = await request<SystemInfo>(`${prefix}/about/info`, '', 'GET');
     return {
-      systemTitle: (response as any).system_title || '',
-      productName: (response as any).product_name || '',
-      productVersion: (response as any).product_version || '',
-      productIntroduction: (response as any).product_introduction || '',
-      copyright: (response as any).copyright || '',
-      servicePhone: (response as any).service_phone || '',
-      serviceEmail: (response as any).service_email || '',
-      technicalEmail: (response as any).technical_email || '',
+      systemTitle: (res as any).system_title || '',
+      systemIcon: (res as any).system_icon || '',
+      systemLogo: (res as any).system_logo || '',
+      systemBanner: (res as any).system_banner || '',
+      productName: (res as any).product_name || '',
+      productVersion: (res as any).product_version || '',
+      productIntroduction: (res as any).product_introduction || '',
+      servicePhone: (res as any).service_phone || '',
+      serviceEmail: (res as any).service_email || '',
+      technicalEmail: (res as any).technical_email || '',
+      integrateLink: (res as any).integrate_link || '',
+      copyright: (res as any).copyright || '',
+    };
+  }
+
+  static async uploadIcon(file: File): Promise<Object> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<Object>(`${prefix}/about/icon/upload`, formData, 'POST');
+  }
+
+  static async uploadLogo(file: File): Promise<Object> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return  request<Object>(`${prefix}/about/logo/upload`, formData, 'POST');
+  }
+
+  static async uploadBanner(file: File): Promise<Object> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return  request<Object>(`${prefix}/about/banner/upload`, formData, 'POST');
+  }
+
+  static async updateSystemInfo(params: SystemInfo): Promise<SystemInfo> {
+    const res = request<SystemInfo>(`${prefix}/about/info/update`, {
+      system_title: params.systemTitle,
+      product_name: params.productName,
+      product_version: params.productVersion,
+      product_introduction: params.productIntroduction,
+      copyright: params.copyright,
+      service_phone: params.servicePhone,
+      service_email: params.serviceEmail,
+      technical_email: params.technicalEmail,
+      integrate_link: params.integrateLink,
+    }, 'PUT');
+    return {
+      systemTitle: (res as any).system_title || '',
+      systemIcon: (res as any).system_icon || '',
+      systemLogo: (res as any).system_logo || '',
+      systemBanner: (res as any).system_banner || '',
+      productName: (res as any).product_name || '',
+      productVersion: (res as any).product_version || '',
+      productIntroduction: (res as any).product_introduction || '',
+      servicePhone: (res as any).service_phone || '',
+      serviceEmail: (res as any).service_email || '',
+      technicalEmail: (res as any).technical_email || '',
+      integrateLink: (res as any).integrate_link || '',
+      copyright: (res as any).copyright || '',
     };
   }
 

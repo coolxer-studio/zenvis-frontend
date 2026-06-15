@@ -1,5 +1,5 @@
 import { TStandardResponse } from '@/types/type-response';
-import { message } from 'ant-design-vue';
+import { ElMessage } from 'element-plus';
 import { getTokenSign } from '@u/util-token';
 import { ls } from '@u/local-storage';
 import router from '@/router';
@@ -51,16 +51,15 @@ export function apiResponse<R>(res: IResult<R>) {
         });
     } else {
       reject(res.data);
-      console.log(res)
       if (res.status === 200 && res.data.status == 101) {
         ls.clear();
         router.replace(`/user/login`).then(() => {
-          message.destroy()
-          message.error(res.data.msg);
+          ElMessage.closeAll()
+          ElMessage.error(res.data.msg);
         });
         //window.location.reload();
       } else {
-        message.error(res.data.msg);
+        ElMessage.error(res.data.msg);
       }
     }
   });
@@ -92,7 +91,7 @@ export function apiDownload(url: string, data: any = {}) {
       link.download = decodeURIComponent(fileName);
       link.click();
     } else {
-      message.error(xhr.statusText);
+      ElMessage.error(xhr.statusText);
     }
   };
 }
@@ -116,7 +115,7 @@ export function apiPreview(url: string, data: any = {}) {
       link.download = decodeURIComponent(fileName);
       link.click();
     } else {
-      message.error(xhr.statusText);
+      ElMessage.error(xhr.statusText);
     }
   };
 }
