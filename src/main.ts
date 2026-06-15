@@ -1,8 +1,5 @@
 import { createApp } from 'vue';
 
-import Antd from 'ant-design-vue';
-import 'ant-design-vue/dist/antd.less';
-
 // 引入 Element Plus
 import ElementPlus from 'element-plus';
 import 'element-plus/dist/index.css';
@@ -16,6 +13,7 @@ import 'virtual:svg-icons-register';
 
 import RootApp from './App.vue';
 import router from './router';
+import pinia from './stores';
 
 import setupComponent from '@c/index';
 
@@ -29,8 +27,8 @@ import 'leaflet/dist/leaflet.css';
 async function initApp() {
   // 创建实例
   const app = createApp(RootApp)
+    .use(pinia)
     .use(guards(router))
-    .use(Antd)
     .use(ElementPlus) // 使用 Element Plus
     .use(JsonViewer);
     

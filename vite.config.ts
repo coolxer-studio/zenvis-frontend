@@ -8,11 +8,9 @@ import viteCompression from 'vite-plugin-compression';
 
 import {
   createStyleImportPlugin,
-  AndDesignVueResolve,
   VantResolve,
   ElementPlusResolve,
   NutuiResolve,
-  AntdResolve,
 } from 'vite-plugin-style-import';
 
 // https://vitejs.dev/config/
@@ -33,8 +31,6 @@ export default ({ mode }) => {
           changeOrigin: true,
           rewrite: path => path.replace(reg, ''),
           configure: (proxy, options) => {
-           console.log(proxy);
-            console.log(options);
              // 配置代理逻辑
            },
         },
@@ -79,8 +75,8 @@ export default ({ mode }) => {
             }
           },
           manualChunks: {
-            // 拆分代码，这个就是分包，配置完后自动按需加载，现在还比不上webpack的splitchunk，不过也能用了。
-            vue: ['vue', 'vue-router', 'vuex'],
+            // 拆分代码，分包。
+            vue: ['vue', 'vue-router', 'pinia'],
             // vant: ['vant'],
             // echarts: ['echarts'],
           },
@@ -126,21 +122,9 @@ export default ({ mode }) => {
       }),
       createStyleImportPlugin({
         resolves: [
-          AndDesignVueResolve(),
           VantResolve(),
           ElementPlusResolve(),
           NutuiResolve(),
-          AntdResolve(),
-        ],
-        libs: [
-          // If you don't have the resolve you need, you can write it directly in the lib, or you can provide us with PR
-          {
-            libraryName: 'ant-design-vue',
-            esModule: true,
-            resolveStyle: name => {
-              return `ant-design-vue/es/${name}/style/index`;
-            },
-          },
         ],
       }),
       vueJsx({

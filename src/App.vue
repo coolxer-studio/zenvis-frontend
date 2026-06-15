@@ -21,7 +21,7 @@ export default {
         const timestamp = Date.now();
         const fullUrl = iconUrl.startsWith('http')
           ? `${iconUrl}?t=${timestamp}`
-          : `/x-genie${iconUrl.startsWith('/') ? '' : '/'}${iconUrl}?t=${timestamp}`;
+          : `/zenvis${iconUrl.startsWith('/') ? '' : '/'}${iconUrl}?t=${timestamp}`;
         favicon.href = fullUrl;
       }
     };
