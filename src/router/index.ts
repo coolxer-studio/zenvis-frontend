@@ -77,17 +77,6 @@ const basicRoutes: Array<RouteRecordRaw> = [
       }
     ]
   },
-    {
-    path: `/service`,
-    component: layout_blank,
-    children: [
-      {
-        path: 'integrated',
-        component: () => import('@v/integrated/index.vue'),
-        name: 'service-integrated'
-      }
-    ]
-  },
   {
     path: `/plugin/config`,
     component: layout_blank,
@@ -161,7 +150,6 @@ router.beforeEach(async (to, from, next) => {
   // await checkSystemConfig();
 
   if ((loginStatus === null || loginStatus === '') && to.path !== `/user/login`) {
-    console.log(to.path);
     // 没有token，同时访问地址不是登录页--> 跳转登录页，带参数
     if (to.fullPath == '/ExceptionPage500') {
       next({

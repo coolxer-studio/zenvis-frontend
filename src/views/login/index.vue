@@ -100,7 +100,7 @@ export default defineComponent({
     });
 
     const captchaUrl = computed(() => {
-      return `/x-genie/api/v1/system/login/kaptcha?${timestamp.value}=${timestamp.value}`;
+      return `/zenvis/api/v1/system/login/kaptcha?${timestamp.value}=${timestamp.value}`;
     });
 
     const onFinish = async () => {
@@ -148,7 +148,7 @@ export default defineComponent({
       if (url.startsWith('http')) {
         return `${url}?t=${Date.now()}`;
       }
-      return `/x-genie${url.startsWith('/') ? '' : '/'}${url}?t=${Date.now()}`;
+      return `/zenvis${url.startsWith('/') ? '' : '/'}${url}?t=${Date.now()}`;
     };
 
     const getBannerStyle = () => {
@@ -158,7 +158,7 @@ export default defineComponent({
       const url = systemInfo.value.systemBanner;
       const bannerUrl = url.startsWith('http') 
         ? `${url}?t=${Date.now()}`
-        : `/x-genie${url.startsWith('/') ? '' : '/'}${url}?t=${Date.now()}`;
+        : `/zenvis${url.startsWith('/') ? '' : '/'}${url}?t=${Date.now()}`;
       return { background: `url(${bannerUrl})` };
     };
 
