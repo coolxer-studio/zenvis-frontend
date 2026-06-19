@@ -77,6 +77,8 @@ export class SystemService {
       type: (item as any).type || '',
       typeDescription: (item as any).type_description || '',
       url: (item as any).url || '',
+      configIndex: (item as any).config_index || 0,
+      htmlPath: (item as any).html_path || '',
       updateTime: (item as any).update_time || '',
     }))
   }
