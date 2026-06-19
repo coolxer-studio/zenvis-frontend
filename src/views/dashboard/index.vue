@@ -17,18 +17,6 @@
       <div>
         <template v-for="(item, index) in dashboardListData">
           <div
-            v-if="item.type == 'BUILT'"
-            :key="index"
-            :class="
-              'dashboard-div ' + (currentDashboard.code == item.code ? 'active-dashboard' : '')
-            "
-            @click="setDashboard(item)"
-          >
-            {{ item.name }}
-          </div>
-          <div
-            v-if="item.type == 'LINK'"
-            :key="index"
             :class="
               'dashboard-div ' + (currentDashboard.code == item.code ? 'active-dashboard' : '')
             "
@@ -41,6 +29,8 @@
     </el-drawer>
 
     <linkBoard v-if="currentDashboard.type == 'LINK'" :data="currentDashboard" />
+    <lowCodeBoard v-if="currentDashboard.type == 'LOW_CODE_PAGE'" :data="currentDashboard" />
+    <htmlBoard v-if="currentDashboard.type == 'HTML_PAGE'" :data="currentDashboard" />
     <msgBoard v-if="currentDashboard.type == 'BUILT'" :data="currentDashboard" />
   </div>
 </template>
@@ -49,8 +39,10 @@ import { onMounted, ref } from 'vue';
 
 import { ArrowRight, ArrowLeft } from '@element-plus/icons-vue';
 
-import linkBoard from './components/linkBoard/index.vue';
-import msgBoard from './components/msgBoard/index.vue';
+import linkBoard from './components/link-board/index.vue';
+import lowCodeBoard from './components/low-code-board/index.vue';
+import htmlBoard from './components/html-board/index.vue';
+import msgBoard from './components/msg-board/index.vue';
 
 import { SystemService } from '@/service/api';
 
