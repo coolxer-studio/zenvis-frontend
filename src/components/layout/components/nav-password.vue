@@ -1,33 +1,52 @@
 <template>
-  <a-modal v-model:visible="visible" title="修改密码" @ok="handleOk" @cancel="handleCancel">
-    <a-form
+  <el-dialog v-model="visible" title="修改密码" @close="handleCancel" :before-close="handleCancel">
+    <el-form
       ref="formRef"
       :model="formPassword"
       name="login"
       autocomplete="off"
-      :labelCol="{ span: 6 }" :wrapperCol="{ span: 16 }"
+      label-width="100px"
     >
-      <a-form-item name="password" v-bind="validateInfos.old_password" label="原密码">
-        <a-input-password class="login-input" placeholder="请输入密码" v-model:value="formPassword.old_password">
-        </a-input-password>
-      </a-form-item>
-      <a-form-item name="password" v-bind="validateInfos.password" label="密码">
-        <a-input-password class="login-input" placeholder="请输入密码" v-model:value="formPassword.password">
-        </a-input-password>
-      </a-form-item>
-      <a-form-item name="password_copy" v-bind="validateInfos.password_copy" label="再次输入密码">
-        <a-input-password class="login-input" placeholder="请输入密码" v-model:value="formPassword.password_copy">
-        </a-input-password>
-      </a-form-item>
-    </a-form>
-  </a-modal>
+      <el-form-item label="原密码" prop="old_password" :rules="formRules.old_password">
+        <el-input
+          class="login-input"
+          type="password"
+          placeholder="请输入原密码"
+          v-model="formPassword.old_password"
+          show-password
+        />
+      </el-form-item>
+      <el-form-item label="新密码" prop="password" :rules="formRules.password">
+        <el-input
+          class="login-input"
+          type="password"
+          placeholder="请输入密码"
+          v-model="formPassword.password"
+          show-password
+        />
+      </el-form-item>
+      <el-form-item label="新密码确认" prop="password_copy" :rules="formRules.password_copy">
+        <el-input
+          class="login-input"
+          type="password"
+          placeholder="请输入密码"
+          v-model="formPassword.password_copy"
+          show-password
+        />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="handleCancel">取消</el-button>
+        <el-button type="primary" @click="handleOk">确定</el-button>
+      </span>
+    </template>
+  </el-dialog>
 </template>
 <script setup lang="ts">
-  import {reactive, ref, toRaw, watch} from "vue";
-  import {Form} from 'ant-design-vue';
-  import type { FormInstance } from 'ant-design-vue';
-  import {rules} from '@u/tool';
-  const useForm = Form.useForm;
+  import { reactive, ref, watch } from "vue";
+  import type { FormInstance } from 'element-plus';
+  import { rules } from '@u/tool';
   interface IUserFrom {
     old_password: string;
     password: string;
@@ -36,9 +55,7 @@
   const props = defineProps({
     show: {
       type: Boolean,
-      default: () => {
-        return false
-      }
+      default: false
     }
   });
   const emit = defineEmits({
@@ -52,71 +69,59 @@
     password: '',
     password_copy: ''
   });
-  const ruleEmail = (rule: any, value: string) => {
-    if (!value) {
-      return Promise.reject('请输入电子邮箱');
-    } else if (!rules.mainRule(value)) {
-      return Promise.reject('联系人邮箱格式不正确');
-    } else {
-      return Promise.resolve();
-    }
-  };
-  const newPass = (rule: any, value: string) => {
-    // 修改用户信息弹框，若填写信息，默认为用户的原密码
-    // 修改页面，不填写密码，跳过验证
+  const newPass = (rule: any, value: string, callback: any) => {
     if (value) {
       if (!rules.passwordRule(value)) {
-        return Promise.reject('请输入8~16位由大小写英文、数字、@!#$组成的密码！');
+        callback(new Error('请输入8~16位由大小写英文、数字、@!#$组成的密码！'));
       } else {
-        return Promise.resolve();
+        callback();
       }
     } else if (value === '') {
-      return Promise.reject('请输入密码');
+      callback(new Error('请输入密码'));
     } else {
-      return Promise.resolve();
+      callback();
     }
   };
-
-  const reNewPass = (rule: any, value: string) => {
-    // 修改用户信息弹框，若填写信息，默认为用户的原密码
+  const reNewPass = (rule: any, value: string, callback: any) => {
     if (value) {
       if (value === formPassword.password) {
-        return Promise.resolve();
-      } else if (value !== formPassword.password) {
-        return Promise.reject('两次输入密码不一致!');
+        callback();
+      } else {
+        callback(new Error('两次输入密码不一致!'));
       }
     } else if (value === '') {
-      return Promise.reject('请输入密码');
+      callback(new Error('请输入密码'));
+    } else {
+      callback();
     }
   };
-  let formRules = reactive({
-    old_password: [{ required: true, message: '请输入原密码', trigger: 'change' }],
-    password: [{ required: true, validator: newPass, trigger: 'change' }],
-    password_copy: [{ required: true, validator: reNewPass, trigger: 'change' }],
+  const formRules = reactive({
+    old_password: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
+    password: [{ required: true, validator: newPass, trigger: 'blur' }],
+    password_copy: [{ required: true, validator: reNewPass, trigger: 'blur' }],
   });
-  const { resetFields, validate, validateInfos } = useForm(formPassword, formRules);
   watch(
     () => props.show,
-    (newVal, oldVal) => {
-      visible.value = newVal
-      resetFields()
+    (newVal) => {
+      visible.value = newVal;
+      if (formRef.value) {
+        formRef.value.resetFields();
+      }
     }
-  )
+  );
   const handleCancel = () => {
-    resetFields()
+    if (formRef.value) {
+      formRef.value.resetFields();
+    }
     emit('on-cancel');
-  }
+  };
   const handleOk = () => {
-    validate()
-      .then(() => {
-        const data = JSON.parse(JSON.stringify(toRaw(formPassword)))
-        delete data['password_copy']
+    formRef.value?.validate((valid: boolean) => {
+      if (valid) {
+        const data = { ...formPassword };
+        delete data.password_copy;
         emit('on-ok', data);
-        // resetFields()
-      })
-      .catch(err => {
-        console.log('error', err);
-      });
-
-  }
+      }
+    });
+  };
 </script>

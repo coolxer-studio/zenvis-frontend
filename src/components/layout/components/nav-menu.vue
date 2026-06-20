@@ -1,20 +1,14 @@
 <template>
-  <a-menu v-model:selectedKeys="current" mode="horizontal" class="login-header-nav">
+  <el-menu mode="horizontal" class="login-header-nav" v-model:active-index="current">
     <template v-for="(item, index) in menuList">
-      <a-menu-item v-if="!item.children" :key="item.code" class="menu-item-with-superscript">
+      <el-menu-item v-if="!item.children" :index="item.code" class="menu-item-with-superscript">
         <router-link :to="{name: item.route, params: { menuParams: item.params }}" style="position: relative; display: inline-block;">
-          <template #icon>
-            <!--<mail-outlined />-->
-          </template>
           {{item.name}}
           <sup v-if="item.superscript" class="menu-superscript">{{ item.superscript }}</sup>
         </router-link>
         <div class="nav_triangle"></div>
-      </a-menu-item>
-      <a-sub-menu v-else :key="item.code" class="menu-item-with-superscript">
-        <template #icon>
-          <!--<setting-outlined />-->
-        </template>
+      </el-menu-item>
+      <el-sub-menu v-else :index="item.code" class="menu-item-with-superscript" popper-class="nav-submenu-popper">
         <template #title>
           <span style="position: relative; display: inline-block;">
             {{item.name}}
@@ -22,97 +16,122 @@
             <div class="nav_triangle"></div>
           </span>
         </template>
-        <a-menu-item v-for="child in item.children" :key="child.code">
+        <el-menu-item v-for="child in item.children" :index="child.code">
           <router-link :to="{name: child.route, params: { menuParams: child.params }}">{{child.name}}</router-link>
-        </a-menu-item>
-      </a-sub-menu>
+        </el-menu-item>
+      </el-sub-menu>
     </template>
-  </a-menu>
-  <a-dropdown class="user-option">
-    <a class="ant-dropdown-link" @click.prevent>
-      <UserOutlined />
-    </a>
-    <template #overlay>
-      <a-menu>
-        <a-menu-item>
-          <div style="color: #7c8087"><user-outlined /> {{userInfo.name}}</div>
-          <a-divider style="height: 1px; background-color: #d5d7d7;margin: 2px;" />
-          <div style="color: #7c8087">{{userInfo.email}}</div>
-        </a-menu-item>
-        <a-menu-item>
-          <a href="javascript:;" @click="updatePassword">修改密码</a>
-        </a-menu-item>
-        <a-menu-item>
-          <a href="javascript:;" @click="logOut"><LogoutOutlined /> 退出</a>
-        </a-menu-item>
-      </a-menu>
+  </el-menu>
+  <el-dropdown class="user-option" trigger="click">
+    <span class="el-dropdown-link">
+      <el-icon><User /></el-icon>
+    </span>
+    <template #dropdown>
+      <el-dropdown-menu>
+        <el-dropdown-item>
+          <div style="display: flex; flex-direction: column; width: 100%;">
+            <div style="display: flex; align-items: center; color: #7c8087;">
+              <el-icon><User /></el-icon>
+              <span style="margin-left: 4px;">{{userInfo.name}}</span>
+            </div>
+            <div style="height: 1px; background-color: #d5d7d7; margin: 4px 0; width: 100%;"></div>
+            <div style="color: #7c8087;">{{userInfo.email}}</div>
+          </div>
+        </el-dropdown-item>
+        <el-dropdown-item>
+          <a @click="updatePassword"><el-icon><Dish /></el-icon>修改密码</a>
+        </el-dropdown-item>
+        <el-dropdown-item>
+          <a @click="logOut"><el-icon><SwitchButton /></el-icon> 退出</a>
+        </el-dropdown-item>
+      </el-dropdown-menu>
     </template>
-  </a-dropdown>
+  </el-dropdown>
   <Password :show="showPassword" @on-ok="submit" @on-cancel="closeModel" />
 </template>
 <script setup lang="ts">
-  import { ref} from 'vue';
-  import { UserOutlined, LogoutOutlined } from '@ant-design/icons-vue';
-  import { UserService } from '@/service/api/api-user';
-  import {ls} from "@u/local-storage";
-  import {useRouter} from "vue-router";
+  import { ref } from 'vue';
+  import { User, SwitchButton, Dish } from '@element-plus/icons-vue';
+  import { UserService } from '@/service/api';
+  import { ls } from "@u/local-storage";
+  import { useRouter } from "vue-router";
   import Password from './nav-password.vue';
   import JSEncrypt from 'jsencrypt'
-  import {message, Modal} from "ant-design-vue";
-  import {getContainer} from "@/types/type-modal";
+  import { ElMessage, ElMessageBox } from 'element-plus';
   const router = useRouter();
   const menuList = ls.get('__permission__')
   let showPassword = ref<boolean>(false)
   const userInfo = ls.get('__user__')
-  const current = ref<string[]>([router.currentRoute.value.name as string]);
+  const current = ref<string>(router.currentRoute.value.name as string);
   const logOut = () => {
-    Modal.confirm({
-      title: '提示',
-      content: '请确认是否退出登录？',
-      cancelText: '取消',
-      okText: '确认',
-      getContainer,
-      onOk() {
-        UserService.doLogOut().then((res: any) => {
-          ls.clear();
-          // window.location.href = '/user/login';
-          router.push({
-            name: 'login',
-          });
+    ElMessageBox.confirm('请确认是否退出登录？', '提示', {
+      confirmButtonText: '确认',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }).then(() => {
+      UserService.doLogOut().then((res: any) => {
+        ls.clear();
+        router.push({
+          name: 'login',
         });
-      },
-    });
+      });
+    }).catch(() => {});
   }
   const updatePassword = () => {
     showPassword.value = true
   }
-  const submit = (params) => {
+  const submit = (params: any) => {
     const encryptor = new JSEncrypt()
     UserService.getEncrypyKey().then((res: any) => {
       encryptor.setPublicKey(res.key)
       UserService.editPassword({...params, old_password: encryptor.encrypt(params.old_password), password: encryptor.encrypt(params.password)}).then((res: any) => {
-        message.success('修改成功', 2, () => {
-          showPassword.value = false
-          logOut()
-        });
+        ElMessage.success('修改成功');
+        showPassword.value = false
+        logOut()
       })
     });
   }
   const closeModel = () => {
-    showPassword.value = true
+    showPassword.value = false
   }
 </script>
 <style lang="less" scoped>
   .login-header-nav{
     background-color: unset;
     color: #fff;
-    font-size: 16px;
+    font-size: 32px;
+    font-weight: 600;
+    border-bottom: none !important;
+    
+    :deep(.el-menu-item.is-active) {
+      background-color: rgba(255, 255, 255, 0.2) !important;
+      color: #fff !important;
+      border-bottom: 2px solid #fff !important;
+      
+      a {
+        color: #fff !important;
+      }
+    }
+    
+    :deep(.el-sub-menu.is-active) {
+      color: #fff !important;
+
+      .el-sub-menu__title {
+        background-color: rgba(255, 255, 255, 0.2) !important;
+        color: #fff !important;
+        border-bottom: 2px solid #fff !important;
+
+        a {
+          color: #fff !important;
+        }
+      }
+    }
   }
   .user-option{
     position: absolute;
-    top: 0px;
+    top: 20px;
     right: 20px;
-    .anticon{
+    .el-icon{
       font-size: 26px;
       color: #fff;
       margin-left: 10px;
@@ -145,4 +164,13 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0; }
         }
+</style>
+<!-- 二级菜单弹层被 teleport 到 body，需用非 scoped 样式去除默认的 A 链接样式 -->
+<style lang="less">
+  .nav-submenu-popper {
+    .el-menu-item a {
+      color: inherit;
+      text-decoration: none;
+    }
+  }
 </style>
