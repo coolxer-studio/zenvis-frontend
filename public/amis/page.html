@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>page</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+  <link rel="stylesheet" href="sdk/sdk.css" />
+  <link rel="stylesheet" href="sdk/helper.css" />
+  <link rel="stylesheet" href="sdk/iconfont.css" />
+  <style>
+    html,
+    body,
+    .app-wrapper {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="root" class="app-wrapper"></div>
+  <!-- 引入 axios 和 amis sdk -->
+  <script src="js/axios.min.js"></script>
+  <script src="sdk/sdk.js"></script>
+  <script type="text/javascript">
+    // 等待 DOM 和 SDK 加载完成
+    window.onload = function () {
+      // 获取地址栏的查询字符串部分
+      const queryString = window.location.search;
+      // 使用 URLSearchParams 解析查询字符串
+      const urlParams = new URLSearchParams(queryString);
+      // 获取site配置参数的值
+      const pageConfig = urlParams.get('config');
+      // 请求 JSON 配置
+      axios.get('/zenvis/api/v1/config/'+pageConfig+'/get?file_name=index.json').then(function (response) {
+        var amisJSON = response.data; // 获取到的 JSON 配置
+        // 渲染 amis 页面
+        var amis = amisRequire('amis/embed');
+        amis.embed('#root', amisJSON);
+      });
+    };
+  </script>
+</body>
+
+</html>
