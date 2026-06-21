@@ -6,7 +6,7 @@
     </div>
 
     <!-- 聊天内容区域 -->
-    <div class="chat-content">
+    <div class="chat-content" ref="chatContentRef">
       <!-- Enter提示信息 -->
       <!-- 已移除原来的 enter-tip 元素，改为使用 ElMessage 实现 toast 提示 -->
       <div class="message-list">
@@ -124,7 +124,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted, nextTick } from 'vue'
+import { ref, reactive, watch, onMounted, nextTick, type Ref } from 'vue'
 import {
   ArrowDown, Monitor, Paperclip, Position, Opportunity
 } from '@element-plus/icons-vue'
@@ -143,6 +143,15 @@ marked.setOptions({
 });
 
 const router = useRouter();
+
+const chatContentRef = ref<HTMLElement | null>(null);
+
+const scrollToBottom = async (): Promise<void> => {
+  await nextTick();
+  if (chatContentRef.value) {
+    chatContentRef.value.scrollTop = chatContentRef.value.scrollHeight;
+  }
+};
 
 // 定义消息接口
 interface Message {
@@ -449,9 +458,11 @@ const getChatSession = async () => {
         messages.value.forEach(msg => {
           processMessageFormat(msg);
         });
+        scrollToBottom();
       }, 500);
 
       chatSessionTitle.value = data.title || '新的会话';
+      scrollToBottom();
     } catch (error) {
       console.error("获取聊天会话数据失败:", error);
       messages.value = [{
@@ -471,6 +482,7 @@ const getChatSession = async () => {
   }
 
   showSuggestionBtn.value = messages.value.length <= 1;
+  scrollToBottom();
 };
 
 
@@ -589,6 +601,8 @@ const sendMessage = async () => {
       loading: true,
     })
 
+    scrollToBottom();
+
     
     try {
       // 调用聊天接口
@@ -648,6 +662,7 @@ const sendMessage = async () => {
 
           // 强制更新DOM
           await nextTick();
+          scrollToBottom();
         }
       }
       

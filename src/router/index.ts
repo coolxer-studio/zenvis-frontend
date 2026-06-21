@@ -53,13 +53,19 @@ const basicRoutes: Array<RouteRecordRaw> = [
   },
   {
     path: `/service`,
-    component: layout_header,
+    component: layout_blank,
     children: [
       {
         path: 'dih',
         component: () => import('@v/dih/index.vue'),
         name: 'service-dih'
-      },
+      }
+    ]
+  },
+  {
+    path: `/service`,
+    component: layout_header,
+    children: [
       {
         path: 'low-code-app/:menuParams',
         component: () => import('@v/low-code-app/index.vue'),
@@ -74,6 +80,11 @@ const basicRoutes: Array<RouteRecordRaw> = [
         path: 'external-app/:menuParams',
         component: () => import('@v/external-app/index.vue'),
         name: 'external-app'
+      },
+      {
+        path: 'html-page/:menuParams',
+        component: () => import('@v/html-page/index.vue'),
+        name: 'html-page'
       }
     ]
   },

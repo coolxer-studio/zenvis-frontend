@@ -288,7 +288,7 @@ const getFullUrl = (url: string): string => {
   if (url.startsWith('http')) {
     return `${url}?t=${timestamp}`;
   }
-  return `/x-genie${url.startsWith('/') ? '' : '/'}${url}?t=${timestamp}`;
+  return `/zenvis${url.startsWith('/') ? '' : '/'}${url}?t=${timestamp}`;
 };
 
 getSystemInfoFun();
