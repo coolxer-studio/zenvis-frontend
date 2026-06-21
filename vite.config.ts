@@ -18,7 +18,6 @@ export default ({ mode }) => {
   // 读取环境变量
   const env = loadEnv(mode, process.cwd());
   const reg = new RegExp('^' + env.VITE_BASE_URL);
-  const uploadReg = new RegExp('^' + env.VITE_BASE_UPLOAD_URL);
   return defineConfig({
     base: '/',
     // assetsInclude: ['**/*.png', '**/*.ttf'],
@@ -33,16 +32,6 @@ export default ({ mode }) => {
           configure: (proxy, options) => {
              // 配置代理逻辑
            },
-        },
-        [env.VITE_BASE_UPLOAD_URL]: {
-          target: env.VITE_BASE_UPLOAD,
-          changeOrigin: true,
-          rewrite: path => path.replace(uploadReg, ''),
-          // configure: (proxy, options) => {
-          //   console.log(proxy);
-          //   console.log(options);
-          //   // 配置代理逻辑
-          // },
         },
       },
     },

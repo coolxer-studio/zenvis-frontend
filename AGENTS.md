@@ -100,7 +100,7 @@ const emit = defineEmits<{ (e: 'update', id: string): void }>();
   | `@u/` | `src/utils/`                                   |
   | `@a/` | `src/assets/`                                  |
   | `@r/` | `src/router/`                                  |
-  | `@s/` | `src/store/`（仅 vite 配置，不在 tsconfig 中） |
+  | `@t/` | `src/types/`（仅 tsconfig 配置）               |
 
 - 同目录下的文件使用相对导入（`./Component`）。
 - 导入顺序：
