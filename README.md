@@ -160,7 +160,7 @@ yarn build:pro
 
 ## 贡献指南
 
-欢迎提交 Issue 和 Pull Request！
+欢迎提交 Issue 和 Pull Request！  
 贡献指南参考 [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
