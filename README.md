@@ -97,6 +97,27 @@ yarn server:dev
 yarn build:pro
 ```
 
+#### Docker 构建启动
+
+```bash
+# 构建镜像
+docker build -t zenvis-frontend:latest .
+
+# 运行容器
+docker run -d -p 11001:11001 zenvis-frontend:latest
+```
+
+#### 使用构建脚本
+
+```bash
+# 使用构建脚本构建（默认不推送镜像）
+./build.sh
+
+# 构建并推送镜像到 Docker Registry
+PUSH_IMAGE=true ./build.sh
+
+```
+
 ## 可用脚本
 
 | 脚本 | 说明 |

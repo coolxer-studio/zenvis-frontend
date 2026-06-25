@@ -1,5 +1,5 @@
-# 使用基础的 nginx 镜像
-FROM nginx:1.25.3
+ARG BASE_IMAGE_ARCH=none
+FROM crpi-4pdi7kz96g4v0tg3.cn-beijing.personal.cr.aliyuncs.com/coolxer-studio/nginx:1.25.3-${BASE_IMAGE_ARCH}
 
 # 设置工作目录为Nginx默认的静态资源目录
 WORKDIR /usr/share/nginx/html
