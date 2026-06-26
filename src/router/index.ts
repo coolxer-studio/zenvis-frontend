@@ -52,6 +52,17 @@ const basicRoutes: Array<RouteRecordRaw> = [
     ]
   },
   {
+    path: `/chatgpt`,
+    component: layout_header,
+    children: [
+      {
+        path: 'index',
+        component: () => import('@v/chatgpt/index.vue'),
+        name: 'chatgpt'
+      }
+    ]
+  },
+  {
     path: `/service`,
     component: layout_blank,
     children: [
