@@ -1,16 +1,61 @@
-interface Message {
+export type ChatMessagePartType = 'markdown' | 'code' | 'notice' | 'confirm' | 'chart' | 'thinking';
+
+export type ChatMessagePartStatus = 'pending' | 'approved' | 'rejected' | string;
+
+export type ChatMessagePart = {
+  id?: string;
+  type: ChatMessagePartType | string;
+  content?: string;
+  language?: string;
+  title?: string;
+  level?: string;
+  status?: ChatMessagePartStatus;
+  metadata?: Record<string, unknown>;
+};
+
+export type ChatAttachment = {
+  file_id?: string;
+  fileId?: string;
+  file_name?: string;
+  fileName?: string;
+  file_size?: number;
+  fileSize?: number;
+  content_type?: string;
+  contentType?: string;
+  kind?: 'image' | 'text' | 'file' | string;
+  file_url?: string;
+  fileUrl?: string;
+  parse_status?: string;
+  parseStatus?: string;
+  message?: string;
+};
+
+export type ChatMessage = {
+  id?: string;
   sender: 'user' | 'ai'
   content: string
   time: string
+  type?: 'text' | 'chart' | 'code' | 'table' | 'image' | string
+  parts?: ChatMessagePart[]
+  attachments?: ChatAttachment[]
+  loading?: boolean
+  isError?: boolean
+  effective?: boolean
   iframe?: string
-}
+};
+
+export type ChatStreamEvent = {
+  event: 'delta' | 'done' | 'error' | string;
+  content?: string;
+  message?: ChatMessage | string;
+};
 
 export type ChatSession = {
   id: string;
   sessionId: string;
   title: string;
   type: string;
-  messageList: Message[];
+  messageList: ChatMessage[];
   deepThink: boolean;
   onlineSearch: boolean;
   updateTime: string;
@@ -23,12 +68,8 @@ export type ModelInfo = {
 };
 
 // 上传文件响应
-export type UploadFileResponse = {
-  success: boolean;
-  file_id?: string;
-  file_name?: string;
-  file_path?: string;
-  message?: string;
+export type UploadFileResponse = ChatAttachment & {
+  success?: boolean;
 };
 
 // 建议请求参数
@@ -50,8 +91,17 @@ export type ChatParams = {
   model?: string;
   deep_think?: boolean;
   online_search?: boolean;
+  response_format?: 'text' | 'events';
   context?: string[];
+  attachments?: ChatAttachment[];
   [key: string]: unknown;
+};
+
+export type ChatActionDecisionParams = {
+  chat_id: string;
+  message_id: string;
+  part_id: string;
+  decision: 'approved' | 'rejected';
 };
 
 // 聊天会话分页列表参数

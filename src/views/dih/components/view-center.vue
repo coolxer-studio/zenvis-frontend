@@ -19,13 +19,17 @@
             </div>
             <div class="message-bubble ai-message">
               <!-- 加载动画 -->
-              <div v-if="message.loading" class="typing-indicator">
+              <div v-if="message.loading && !message.parts?.length" class="typing-indicator">
                 <span class="typing-dot"></span>
                 <span class="typing-dot"></span>
                 <span class="typing-dot"></span>
               </div>
-              <!-- 渲染Markdown内容 -->
-              <div v-else class="message-content markdown-body" v-html="parseMarkdown(message.content)"></div>
+              <chat-message-renderer
+                v-else
+                :message="message"
+                @copy-code="copyMessage"
+                @decide-action="handleActionDecision(message, $event)"
+              />
               <div class="message-time">{{ message.time }}</div>
               <!-- 新增：AI消息的交互按钮 -->
               <div class="message-actions" v-show="isHoveredAiMessage === index">
@@ -41,6 +45,27 @@
             @mouseleave="handleMouseLeave('user')">
             <div class="message-bubble user-message">
               <div class="message-content user-content">{{ message.content }}</div>
+              <div v-if="message.attachments?.length" class="message-attachments">
+                <div
+                  v-for="attachment in message.attachments"
+                  :key="attachmentFileId(attachment)"
+                  class="message-attachment"
+                  :class="{ 'image-attachment': isImageAttachment(attachment) }"
+                >
+                  <img
+                    v-if="isImageAttachment(attachment)"
+                    class="attachment-image-preview"
+                    :src="attachmentPreviewUrl(attachment)"
+                    :alt="attachmentFileName(attachment)"
+                    @click="openAttachmentPreview(attachment)"
+                  />
+                  <template v-else>
+                    <el-icon><Paperclip /></el-icon>
+                    <span class="attachment-name">{{ attachmentFileName(attachment) }}</span>
+                    <span class="attachment-size">{{ formatFileSize(attachment.file_size ?? attachment.fileSize) }}</span>
+                  </template>
+                </div>
+              </div>
               <div class="message-time">{{ message.time }}</div>
               <!-- 新增：用户消息的交互按钮 -->
               <div class="message-actions" v-show="isHoveredUserMessage === index">
@@ -58,6 +83,35 @@
         <el-input v-model="inputMessage" type="textarea" :rows="1" :autosize="{ minRows: 2, maxRows: 6 }"
           placeholder="输入你的问题，帮你深度解答" @keydown.enter.exact.prevent="handleEnterPress" 
           @keydown.enter.shift.exact.prevent="insertLineBreak"></el-input>
+
+        <div v-if="pendingAttachments.length || isUploadingAttachment" class="pending-attachments">
+          <div
+            v-for="(attachment, index) in pendingAttachments"
+            :key="attachmentFileId(attachment)"
+            class="pending-attachment"
+            :class="{ 'pending-image-attachment': isImageAttachment(attachment) }"
+          >
+            <img
+              v-if="isImageAttachment(attachment)"
+              class="pending-image-preview"
+              :src="attachmentPreviewUrl(attachment)"
+              :alt="attachmentFileName(attachment)"
+              @click="openAttachmentPreview(attachment)"
+            />
+            <template v-else>
+              <el-icon><Paperclip /></el-icon>
+              <span class="attachment-name">{{ attachmentFileName(attachment) }}</span>
+              <span class="attachment-size">{{ formatFileSize(attachment.file_size ?? attachment.fileSize) }}</span>
+            </template>
+            <el-tooltip content="移除附件" placement="top">
+              <el-button class="attachment-remove-btn" :icon="Close" circle @click="removePendingAttachment(index)" />
+            </el-tooltip>
+          </div>
+          <div v-if="isUploadingAttachment" class="pending-attachment uploading">
+            <el-icon><Loading /></el-icon>
+            <span>正在上传...</span>
+          </div>
+        </div>
 
         <div class="input-actions">
           <el-dropdown size="small" @command="handleModelCommand">
@@ -87,7 +141,7 @@
           <!-- 结束新增 -->
 
           <el-tooltip content="上传文件" placement="top">
-            <el-button class="action-btn" @click="uploadFile">
+            <el-button class="action-btn" :disabled="isUploadingAttachment" @click="uploadFile">
               <el-icon>
                 <Paperclip />
               </el-icon>
@@ -95,7 +149,7 @@
           </el-tooltip>
 
           <el-tooltip content="发送" placement="top">
-            <el-button class="action-btn send-btn" :disabled="!inputMessage.trim()" @click="sendMessage">
+            <el-button class="action-btn send-btn" :disabled="!canSendMessage" @click="sendMessage">
               <el-icon>
                 <Position />
               </el-icon>
@@ -124,24 +178,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted, nextTick, type Ref } from 'vue'
+import { computed, ref, reactive, watch, onMounted, nextTick } from 'vue'
 import {
-  ArrowDown, Monitor, Paperclip, Position, Opportunity
+  ArrowDown, Close, Loading, Monitor, Paperclip, Position, Opportunity
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { DihService } from '@/service/api'
 import { useRouter } from 'vue-router'
 import { generateUUID } from '@/utils/util-common'
 import {getCurrentFormattedDate} from '@/utils/util-time'
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
-import BaseChart from '@/components/echarts/base-chart.vue';
-
-// Set marked.js global options for markdown parsing
-marked.setOptions({
-  gfm: true,
-  breaks: true
-});
+import { withBaseUrl } from '@/utils/url';
+import ChatMessageRenderer from './chat-message-renderer.vue';
+import type { ChatAttachment, ChatMessage, ChatMessagePart } from '@/types/type-dih';
 
 const router = useRouter();
 
@@ -153,16 +201,6 @@ const scrollToBottom = async (): Promise<void> => {
     chatContentRef.value.scrollTop = chatContentRef.value.scrollHeight;
   }
 };
-
-// 定义消息接口
-interface Message {
-  sender: 'user' | 'ai'
-  content: string
-  time: string
-  type?: 'text' | 'chart' // 消息类型
-  chartData?: any // 可选的图表数据
-  loading?: boolean // 是否正在加载
-}
 
 // 定义基础信息接口
 interface BasicInfo {
@@ -209,6 +247,11 @@ interface SelectData {
 
 // 输入消息
 const inputMessage = ref('')
+const pendingAttachments = ref<ChatAttachment[]>([])
+const isUploadingAttachment = ref(false)
+const canSendMessage = computed(() => {
+  return !isUploadingAttachment.value && (inputMessage.value.trim().length > 0 || pendingAttachments.value.length > 0)
+})
 
 // 添加一个变量来跟踪Enter按键次数
 const enterPressCount = ref(0)
@@ -263,7 +306,7 @@ const totalTasks = ref(3)
 
 
 // 消息列表
-const messages = ref<Message[]>([
+const messages = ref<ChatMessage[]>([
   {
     sender: 'ai',
     content: '嘿！我是你的人工智能助手。有什么问题尽管问我吧！',
@@ -369,7 +412,97 @@ const parseJsonContent = (content: string) => {
 };
 
 // 判断消息是否为chart格式并处理
-const processMessageFormat = (message: Message) => {
+const createMarkdownParts = (content: string): ChatMessagePart[] => [
+  {
+    id: generateUUID(),
+    type: 'markdown',
+    content,
+  },
+];
+
+const createThinkingPart = (status: 'running' | 'completed' = 'running'): ChatMessagePart => ({
+  id: generateUUID(),
+  type: 'thinking',
+  title: '思考过程',
+  content: status === 'running' ? '正在深度思考，请稍候...' : '已完成深度思考。',
+  status,
+});
+
+const hasThinkTag = (content: string) => content.includes('<think>');
+
+const attachmentFileId = (attachment: ChatAttachment) => {
+  return attachment.file_id || attachment.fileId || attachment.file_name || attachment.fileName || 'attachment';
+};
+
+const attachmentFileName = (attachment: ChatAttachment) => {
+  return attachment.file_name || attachment.fileName || '未命名文件';
+};
+
+const formatFileSize = (size?: number) => {
+  if (!size || size <= 0) return '';
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+};
+
+const isImageAttachment = (attachment: ChatAttachment) => {
+  const contentType = attachment.content_type || attachment.contentType || '';
+  const fileName = attachmentFileName(attachment).toLowerCase();
+  return attachment.kind === 'image'
+    || contentType.startsWith('image/')
+    || /\.(png|jpe?g|webp|gif|bmp)$/i.test(fileName);
+};
+
+const attachmentPreviewUrl = (attachment: ChatAttachment) => {
+  const url = attachment.file_url || attachment.fileUrl || '';
+  return url ? withBaseUrl(url) : '';
+};
+
+const openAttachmentPreview = (attachment: ChatAttachment) => {
+  const url = attachmentPreviewUrl(attachment);
+  if (url) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+};
+
+const removePendingAttachment = (index: number) => {
+  pendingAttachments.value.splice(index, 1);
+};
+
+const createDeepThinkingStreamingParts = (content: string): ChatMessagePart[] => {
+  const parts: ChatMessagePart[] = [createThinkingPart('running')];
+  if (content.trim()) {
+    parts.push({
+      id: generateUUID(),
+      type: 'markdown',
+      content,
+    });
+  }
+  return parts;
+};
+
+const getChartContent = (message: ChatMessage) => {
+  const chartPart = message.parts?.find(part => part.type === 'chart');
+  return chartPart?.content || message.content;
+};
+
+const markChartAsLoaded = (message: ChatMessage) => {
+  message.content = '图表数据已加载，请在右侧面板查看可视化结果。';
+  message.parts = createMarkdownParts(message.content);
+};
+
+const dispatchChartData = (jsonData: any) => {
+  window.dispatchEvent(new CustomEvent('inspectChartData', {
+    detail: {
+      chartType: jsonData.chart_type || 'line',
+      option: jsonData.option || jsonData,
+      rawData: jsonData.raw_data,
+      columns: jsonData.columns
+    }
+  }));
+};
+
+const processMessageFormat = (message: ChatMessage) => {
   if (message.sender === 'ai' && message.content) {
     
     // 如果消息类型已经是 text，直接返回，不进行 JSON 解析
@@ -379,19 +512,10 @@ const processMessageFormat = (message: Message) => {
     
     // 如果消息类型已经是 chart，发送图表数据到右侧组件
     if (message.type === 'chart') {
-      const jsonData = parseJsonContent(message.content);
+      const jsonData = parseJsonContent(getChartContent(message));
       if (jsonData && jsonData.option) {
-        // 发送图表数据到 view-right-inspect 组件
-        window.dispatchEvent(new CustomEvent('inspectChartData', {
-          detail: {
-            chartType: jsonData.chart_type || 'line',
-            option: jsonData.option,
-            rawData: jsonData.raw_data,
-            columns: jsonData.columns
-          }
-        }));
-        // 更新消息内容为提示文本
-        message.content = '图表数据已加载，请在右侧面板查看可视化结果。';
+        dispatchChartData(jsonData);
+        markChartAsLoaded(message);
       } else {
         console.warn('processMessageFormat - jsonData 存在但没有 option 字段:', jsonData);
       }
@@ -402,16 +526,8 @@ const processMessageFormat = (message: Message) => {
     // 判断是否为图表数据格式
     if (jsonData && (jsonData.option || jsonData.chart_type)) {
       message.type = 'chart';
-      // 发送图表数据到 view-right-inspect 组件
-      window.dispatchEvent(new CustomEvent('inspectChartData', {
-        detail: {
-          chartType: jsonData.chart_type || 'line',
-          option: jsonData.option || jsonData,
-          rawData: jsonData.raw_data,
-          columns: jsonData.columns
-        }
-      }));
-      message.content = '图表数据已加载，请在右侧面板查看可视化结果。';
+      dispatchChartData(jsonData);
+      markChartAsLoaded(message);
     } else {
       message.type = 'text';
     }
@@ -582,15 +698,19 @@ const insertLineBreak = () => {
 
 // 发送消息
 const sendMessage = async () => {
-  if (inputMessage.value.trim()) {
+  if (canSendMessage.value) {
     // 清空输入框 
-    var sendMessage = inputMessage.value.trim();
+    const sendMessage = inputMessage.value.trim();
+    const messageAttachments = pendingAttachments.value.slice();
+    const displayMessage = sendMessage || '请分析上传的附件内容。';
     inputMessage.value = ''
+    pendingAttachments.value = []
     // 添加用户消息
     messages.value.push({
       sender: 'user',
-      content: sendMessage,
+      content: displayMessage,
       time: getCurrentFormattedDate(),
+      attachments: messageAttachments,
     })
 
     // 添加AI回复占位消息
@@ -600,71 +720,66 @@ const sendMessage = async () => {
       content: '',
       time: getCurrentFormattedDate(),
       loading: true,
+      parts: isDeepThinking.value ? [createThinkingPart('running')] : undefined,
     })
 
     scrollToBottom();
 
     
     try {
-      // 调用聊天接口
-      const reader = await DihService.chat({
+      let accumulatedContent = '';
+      const streamOk = await DihService.chatEvents({
         type: chatSessionType.value,
-        message: sendMessage,
+        message: displayMessage,
         model: modelSelectData.value.period,
         deep_think: isDeepThinking.value,
         chat_id: chatSessionId.value, // 使用正确的chatSessionId
-      });
-
-      if (!reader) {
-        messages.value[aiMessageIndex].loading = false;
-        messages.value[aiMessageIndex].content = '抱歉，回复失败，请稍后重试~';
-        return;
-      }
-
-      const decoder = new TextDecoder('utf-8');
-      let done = false;
-      let accumulatedContent = '';
-
-      while (!done) {
-        const { value, done: readerDone } = await reader.read();
-        done = readerDone;
-
-        if (value) {
-          const chunk = decoder.decode(value, { stream: true });
-          accumulatedContent += chunk;
-
+        attachments: messageAttachments,
+      }, async event => {
+        if (event.event === 'delta') {
+          accumulatedContent += event.content || '';
           if (messages.value[aiMessageIndex].loading) {
             messages.value[aiMessageIndex].loading = false;
           }
+          messages.value[aiMessageIndex].content = accumulatedContent;
+          messages.value[aiMessageIndex].parts = isDeepThinking.value && !hasThinkTag(accumulatedContent)
+            ? createDeepThinkingStreamingParts(accumulatedContent)
+            : undefined;
+          await nextTick();
+          scrollToBottom();
+          return;
+        }
 
-          // 检查是否为 agent_inspect 类型并包含图表数据
-          if (chatSessionType.value === 'agent_inspect') {
-            // 使用组件级别的 parseJsonContent 工具方法
-            const jsonData = parseJsonContent(accumulatedContent);
-            // 如果返回数据包含 option 字段，则为图表数据
-            if (jsonData && jsonData.option) {
-              // 发送图表数据到 view-right-inspect 组件
-              window.dispatchEvent(new CustomEvent('inspectChartData', {
-                detail: {
-                  chartType: jsonData.chart_type || 'line',
-                  option: jsonData.option,
-                  rawData: jsonData.raw_data,
-                  columns: jsonData.columns
-                }
-              }));
-              // 显示简要说明而不是原始 JSON
-              messages.value[aiMessageIndex].content = '图表数据已加载，请在右侧面板查看可视化结果。';
-            } else {
-              messages.value[aiMessageIndex].content = accumulatedContent;
-            }
+        if (event.event === 'done') {
+          if (event.message && typeof event.message !== 'string') {
+            messages.value[aiMessageIndex] = {
+              ...event.message,
+              loading: false,
+            };
+            processMessageFormat(messages.value[aiMessageIndex]);
           } else {
+            messages.value[aiMessageIndex].loading = false;
             messages.value[aiMessageIndex].content = accumulatedContent;
           }
+          await nextTick();
+          scrollToBottom();
+          return;
+        }
 
-          // 强制更新DOM
+        if (event.event === 'error') {
+          messages.value[aiMessageIndex].loading = false;
+          messages.value[aiMessageIndex].content = typeof event.message === 'string'
+            ? event.message
+            : '抱歉，回复失败，请稍后重试~';
           await nextTick();
           scrollToBottom();
         }
+      });
+
+      if (!streamOk) {
+        messages.value[aiMessageIndex].loading = false;
+        messages.value[aiMessageIndex].content = '抱歉，回复失败，请稍后重试~';
+        return;
       }
       
       // 判断是否为新聊天会话
@@ -676,7 +791,7 @@ const sendMessage = async () => {
           id: chatSessionId.value,
           type: chatSessionType.value,
           sessionId: chatSessionId.value,
-          title: sendMessage.substring(0, 20) + (sendMessage.length > 20 ? '...' : ''), // 使用前20个字符作为标题
+          title: displayMessage.substring(0, 20) + (displayMessage.length > 20 ? '...' : ''), // 使用前20个字符作为标题
           pin: false
         };
         // 触发事件通知父组件添加新的聊天项
@@ -721,36 +836,40 @@ const handleModelCommand = (command: string) => {
 
 // 上传文件
 const uploadFile = () => {
+  if (isUploadingAttachment.value) {
+    return;
+  }
   // 创建文件输入元素
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
+  fileInput.multiple = true;
   fileInput.style.display = 'none';
-  fileInput.onchange = (event) => {
+  fileInput.onchange = async (event) => {
     const target = event.target as HTMLInputElement;
     if (target.files && target.files.length > 0) {
-      const file = target.files[0];
-      // 调用上传接口
-      DihService.uploadFile(file).then(res => {
-        // 添加系统消息提示
-        messages.value.push({
-          sender: 'ai',
-          content: `文件 "${file.name}" 上传成功！`,
-          time: new Date().toLocaleString()
-        });
-      }).catch(err => {
+      const files = Array.from(target.files);
+      isUploadingAttachment.value = true;
+      try {
+        for (const file of files) {
+          const attachment = await DihService.uploadFile(file);
+          pendingAttachments.value.push(attachment);
+        }
+        ElMessage.success(files.length > 1 ? `已添加 ${files.length} 个附件` : `已添加附件「${files[0].name}」`);
+      } catch (err) {
         console.error('文件上传失败', err);
-        // 添加系统消息提示
-        messages.value.push({
-          sender: 'ai',
-          content: `文件 "${file.name}" 上传失败，请重试！`,
-          time: new Date().toLocaleString()
-        });
-      });
+        ElMessage.error('文件上传失败，请重试');
+      } finally {
+        isUploadingAttachment.value = false;
+        if (fileInput.parentNode) {
+          document.body.removeChild(fileInput);
+        }
+      }
+    } else if (fileInput.parentNode) {
+      document.body.removeChild(fileInput);
     }
   };
   document.body.appendChild(fileInput);
   fileInput.click();
-  document.body.removeChild(fileInput);
 }
 
 // 选择建议
@@ -798,6 +917,29 @@ const copyMessage = (content: string) => {
   });
 };
 
+const handleActionDecision = async (
+  message: ChatMessage,
+  payload: { part: ChatMessagePart; decision: 'approved' | 'rejected' }
+) => {
+  if (!chatSessionId.value || !message.id || !payload.part.id) {
+    ElMessage.warning('缺少确认记录标识，无法记录操作结果');
+    return;
+  }
+
+  try {
+    await DihService.recordActionDecision({
+      chat_id: chatSessionId.value,
+      message_id: message.id,
+      part_id: payload.part.id,
+      decision: payload.decision,
+    });
+    payload.part.status = payload.decision;
+    ElMessage.success(payload.decision === 'approved' ? '已确认执行' : '已取消操作');
+  } catch (error) {
+    console.error('记录确认结果失败:', error);
+  }
+};
+
 // 分享消息（示例）
 const shareMessage = (content: string) => {
   // 显示 toast 提示信息
@@ -816,10 +958,6 @@ const likeMessage = (index: number) => {
 const dislikeMessage = (index: number) => {
 };
 
-// 添加解析Markdown的方法
-const parseMarkdown = (content: string) => {
-  return DOMPurify.sanitize(marked.parse(content) as string);
-};
 </script>
 
 <style scoped>
@@ -1120,7 +1258,7 @@ const parseMarkdown = (content: string) => {
 
 :deep(.el-textarea__inner) {
   border: none;
-  padding: 12px 100px 12px 12px;
+  padding: 12px 150px 12px 12px;
   resize: none;
   box-shadow: none;
 }
@@ -1135,6 +1273,108 @@ const parseMarkdown = (content: string) => {
   bottom: 8px;
   display: flex;
   gap: 5px;
+}
+
+.pending-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 150px 10px 12px;
+}
+
+.pending-attachment,
+.message-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  background-color: #f7f8fa;
+  color: #606266;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.pending-image-attachment {
+  position: relative;
+  width: 66px;
+  height: 66px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.pending-image-preview {
+  width: 66px;
+  height: 66px;
+  object-fit: cover;
+  cursor: pointer;
+  display: block;
+}
+
+.pending-image-attachment .attachment-remove-btn {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  color: #606266;
+  background-color: rgba(255, 255, 255, 0.86);
+}
+
+.pending-attachment.uploading {
+  color: #409eff;
+}
+
+.attachment-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-size {
+  flex-shrink: 0;
+  color: #909399;
+}
+
+.attachment-remove-btn {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #909399;
+}
+
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.user-message .message-attachment {
+  background-color: rgba(255, 255, 255, 0.7);
+  border-color: rgba(255, 255, 255, 0.6);
+  color: #2f4156;
+}
+
+.message-attachment.image-attachment {
+  max-width: none;
+  padding: 0;
+  overflow: hidden;
+  background-color: transparent;
+}
+
+.attachment-image-preview {
+  display: block;
+  width: min(220px, 58vw);
+  max-height: 220px;
+  object-fit: cover;
+  cursor: zoom-in;
 }
 
 .action-btn {
