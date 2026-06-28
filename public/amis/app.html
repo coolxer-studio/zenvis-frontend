@@ -70,6 +70,10 @@
       const urlParams = new URLSearchParams(queryString);
       // 获取site配置参数的值
       const siteConfig = urlParams.get('config');
+      const apiBaseUrl = (urlParams.get('baseUrl') || '').replace(/\/+$/, '');
+      const withApiBaseUrl = function (path) {
+        return apiBaseUrl + (path.charAt(0) === '/' ? path : '/' + path);
+      };
 
       const app = {
         type: 'app',
@@ -81,7 +85,7 @@
         //            tpl: '<div class="flex justify-between"><div>顶部区域左侧</div><div>顶部区域右侧</div></div>'
         //         },
         footer: '<div class="p-2 text-center bg-light">Copyright © 2024 coolXer团队. All rights reserved.</div>',
-        api: '/zenvis/api/v1/config/'+siteConfig+'/get?file_name=site.json'
+        api: withApiBaseUrl('/api/v1/config/' + encodeURIComponent(siteConfig || '') + '/get?file_name=site.json')
       };
 
       function normalizeLink(to, location = history.location) {
@@ -194,10 +198,10 @@
             if (action && action.actionType === 'url') {
               action.blank === false
                 ? (window.location.href = to)
-                : window.open(to, '_blank');
+                : window.open(to, '_blank', 'noopener,noreferrer');
               return;
             } else if (action && action.blank) {
-              window.open(to, '_blank');
+              window.open(to, '_blank', 'noopener,noreferrer');
               return;
             }
 

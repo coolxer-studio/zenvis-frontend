@@ -7,6 +7,12 @@ interface PersistOptions {
   expire?: number;
 }
 
+declare module 'pinia' {
+  export interface DefineStoreOptionsBase<S, Store> {
+    persist?: PersistOptions | false;
+  }
+}
+
 /**
  * Pinia 持久化插件
  * 使用现有的 localStorage 封装工具
@@ -14,7 +20,7 @@ interface PersistOptions {
 export function createPersistedState() {
   return (context: PiniaPluginContext) => {
     const { store, options } = context;
-    const persistOptions: PersistOptions = options.persist as PersistOptions || {};
+    const persistOptions = options.persist as PersistOptions | false | undefined;
 
     if (!persistOptions) return;
 

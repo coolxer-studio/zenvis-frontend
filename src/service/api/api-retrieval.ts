@@ -22,11 +22,11 @@ export class RetrievalService {
     return request<EntityResponse>(`${prefix}/entity/list`, params, 'GET');
   }
 
-  static async getAttribute(params: { entity: string }): Promise<AttributeResponse> {
+  static async getAttribute(params: { entity?: string }): Promise<AttributeResponse> {
     return request<AttributeResponse>(`${prefix}/attribute/list`, params, 'GET');
   }
 
-  static async getCandidate(params: { entity: string; attribute: string }): Promise<CandidateResponse> {
+  static async getCandidate(params: { entity?: string; attribute?: string }): Promise<CandidateResponse> {
     return request<CandidateResponse>(`${prefix}/candidate/list`, params, 'GET');
   }
 
@@ -42,7 +42,7 @@ export class RetrievalService {
     return request<CriteriaResponse>(`${prefix}/criteria`, params);
   }
 
-  static async getListByCriteria(params: { criteria_id: string; page?: number; size?: number }): Promise<listResponse<any>> {
+  static async getListByCriteria(params: { criteria_id?: string; page?: number; size?: number }): Promise<listResponse<any>> {
     return request<listResponse<any>>(`${prefix}/do`, params);
   }
 
@@ -50,11 +50,11 @@ export class RetrievalService {
     return request<RuleResponse>(`${prefix}/rule/create`, params);
   }
 
-  static async updateRule(params: RuleParams & { rule_id: string }): Promise<RuleResponse> {
+  static async updateRule(params: RuleParams & { rule_id?: string; id?: string | number }): Promise<RuleResponse> {
     return request<RuleResponse>(`${prefix}/rule/update`, params);
   }
 
-  static async ruleDetail(params: { rule_id: string }): Promise<RuleDetailResponse> {
+  static async ruleDetail(params: { rule_id?: string }): Promise<RuleDetailResponse> {
     return request<RuleDetailResponse>(`${prefix}/rule/get`, params, 'GET');
   }
 
@@ -62,7 +62,7 @@ export class RetrievalService {
     return request<listResponse<RuleDetailResponse>>(`${prefix}/rule/list`, '', 'GET');
   }
 
-  static async getCol(params: { entity: string }): Promise<DisplayAttributeResponse> {
+  static async getCol(params: { entity?: string; rule_id?: string | number }): Promise<DisplayAttributeResponse> {
     return request<DisplayAttributeResponse>(`${prefix}/display/attribute/list`, params, 'GET');
   }
 

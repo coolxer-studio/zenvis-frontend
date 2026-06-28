@@ -37,8 +37,12 @@
       const urlParams = new URLSearchParams(queryString);
       // 获取site配置参数的值
       const pageConfig = urlParams.get('config');
+      const apiBaseUrl = (urlParams.get('baseUrl') || '').replace(/\/+$/, '');
+      const withApiBaseUrl = function (path) {
+        return apiBaseUrl + (path.charAt(0) === '/' ? path : '/' + path);
+      };
       // 请求 JSON 配置
-      axios.get('/zenvis/api/v1/config/'+pageConfig+'/get?file_name=index.json').then(function (response) {
+      axios.get(withApiBaseUrl('/api/v1/config/' + encodeURIComponent(pageConfig || '') + '/get?file_name=index.json')).then(function (response) {
         var amisJSON = response.data; // 获取到的 JSON 配置
         // 渲染 amis 页面
         var amis = amisRequire('amis/embed');

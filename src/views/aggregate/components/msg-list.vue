@@ -38,7 +38,7 @@
 import { reactive, ref, watch, onMounted } from "vue";
 import { TDynamicTableParams, TPagination, TTable } from "@/types/type-public";
 import { TDeviceListResponse } from "@/types/type-device";
-import { merge, omit } from "lodash";
+import { merge, omit } from 'lodash-es';
 import { AggregateService } from '@/service/api';
 import { ElMessage } from 'element-plus';
 
@@ -421,7 +421,7 @@ const getData = async () => {
     // 添加2秒延时
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    const data = await AggregateService.getMsgList(params) as MsgListResponse;
+    const data = await AggregateService.getMsgList(params) as unknown as MsgListResponse;
     tableState.data = data.rows || [];
     tableState.pagination.total = data.total || 0;
   } catch (error) {

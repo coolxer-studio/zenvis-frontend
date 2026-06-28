@@ -2,10 +2,9 @@
   "compilerOptions": {
     "target": "esnext",
     "useDefineForClassFields": true,
-    "suppressImplicitAnyIndexErrors":true,
     "module": "esnext",
     "allowJs": true,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "strict": true,
     "jsx": "preserve",
     "sourceMap": true,
@@ -13,33 +12,36 @@
     "isolatedModules": true,
     "esModuleInterop": true,
     "noImplicitAny": false,
+    "types": [
+      "vite/client",
+      "node"
+    ],
     "lib": [
       "esnext",
       "dom"
     ],
     "skipLibCheck": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": [
-        "src/*"
+        "./src/*"
       ],
       "@a/*": [
-        "src/assets/*"
+        "./src/assets/*"
       ],
       "@c/*": [
-        "src/components/*"
+        "./src/components/*"
       ],
       "@r/*": [
-        "src/router/*"
+        "./src/router/*"
       ],
       "@t/*": [
-        "src/types/*"
+        "./src/types/*"
       ],
       "@v/*": [
-        "src/views/*"
+        "./src/views/*"
       ],
       "@u/*": [
-        "src/utils/*"
+        "./src/utils/*"
       ]
     }
   },

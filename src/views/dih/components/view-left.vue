@@ -238,7 +238,7 @@ const handleChatListCommand = (command: string, index: number) => {
             if(item.pin){
               chatPinList.value.forEach(itemPin => {
                 if(itemPin.id === item.id){
-                  item.title = value
+                  itemPin.title = value
                 }
               })
             }
@@ -305,7 +305,7 @@ const handleChatListCommand = (command: string, index: number) => {
           chatHistory.value.splice(index, 1)
           // 置顶的也需要从列表中移除已删除的项
             if(item.pin){
-              chatPinList.value = chatPinList.value.filter((pinItem) => pinItem.id === item.id);
+              chatPinList.value = chatPinList.value.filter(pinItem => pinItem.id !== item.id);
             }
           // 如果删除的是当前激活的聊天，重置激活项
           if (index === activeChat.value) {
@@ -338,12 +338,12 @@ onMounted(() => {
   loadChatHistory()
   
   // 监听新聊天创建事件
-  window.addEventListener('newChatCreated', handleNewChatCreated);
+  window.addEventListener('newChatCreated', handleNewChatCreated as EventListener);
 })
 
 // 组件卸载时移除事件监听
 onUnmounted(() => {
-  window.removeEventListener('newChatCreated', handleNewChatCreated);
+  window.removeEventListener('newChatCreated', handleNewChatCreated as EventListener);
 })
 
 // 处理新聊天创建事件
@@ -508,7 +508,6 @@ const handleNewChatCreated = (event: CustomEvent) => {
   text-decoration: underline;
 }
 </style>
-
 
 
 

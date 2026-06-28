@@ -149,7 +149,7 @@
   </div>
 </template>
 <script setup lang="ts">
-  import {reactive, ref, toRaw, watch, onMounted} from "vue";
+  import {reactive, ref, toRaw, watch, onMounted, onBeforeUnmount} from "vue";
   import {ls} from "@u/local-storage";
   import { Search, ArrowDown, ArrowUp , Close } from '@element-plus/icons-vue';
   import {EntityResponse, TEntityListResponse, AttributeResponse, TCriteriaList, TAttributeListResponse} from "@/types/type-retrieval";
@@ -505,12 +505,18 @@
       }
     }
   }
+  const handleDocumentClick = () => {
+    closeMoreFilter()
+    closeAllPopovers()
+  }
+
   onMounted(() => {
     getEntityList()
-    document.addEventListener('click', (event)=> {
-      closeMoreFilter()
-      closeAllPopovers()
-    })
+    document.addEventListener('click', handleDocumentClick)
+  })
+
+  onBeforeUnmount(() => {
+    document.removeEventListener('click', handleDocumentClick)
   })
 </script>
 <style lang="scss" scoped>

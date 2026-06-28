@@ -2,12 +2,15 @@
   <iframe
     :src="iframeUrl"
     class="iframe-container"
+    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+    referrerpolicy="no-referrer"
   />
 </template>
 
 <script setup lang="ts">
 import { watch, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import { appBaseUrl, sanitizeIframeUrl } from '@u/url';
 const route = useRoute();
 const baseUrl = ref<string>('/amis/page.html');
 // 提取路径参数并转换为字符串
@@ -16,14 +19,22 @@ function getConfigType(): string {
   return route.params['menuParams']?.toString() || 'default';
 }
 
+const buildIframeUrl = () => {
+  const params = new URLSearchParams({
+    config: getConfigType(),
+    baseUrl: appBaseUrl,
+  });
+  return sanitizeIframeUrl(`${baseUrl.value}?${params.toString()}`);
+};
+
 // 初始化 iframeUrl
-const iframeUrl = ref<string>(baseUrl.value+'?config='+getConfigType());
+const iframeUrl = ref<string>(buildIframeUrl());
 
 // 监听路由变化
 watch(
   () => route.params['menuParams'], // 只监听 route.params['menuParams'] 的变化
   () => {
-    iframeUrl.value = baseUrl.value+'?config='+getConfigType();
+    iframeUrl.value = buildIframeUrl();
   },
   { deep: true }
 );

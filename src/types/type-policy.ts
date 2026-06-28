@@ -8,8 +8,10 @@ export type ConfigTreeNode = {
   id: string;
   name: string;
   label: string;
+  file_name: string;
   type?: string;
   children?: ConfigTreeNode[];
+  nodes?: ConfigTreeNode[];
   [key: string]: unknown;
 };
 
@@ -17,6 +19,8 @@ export type ConfigTreeNode = {
 export type SchemaParams = {
   path?: string;
   name?: string;
+  file_name?: string;
+  [key: string]: unknown;
 };
 
 // Schema 响应
@@ -30,22 +34,23 @@ export type SchemaResponse = {
 
 // 文本内容参数
 export type TextContentParams = {
-  path: string;
+  path?: string;
   name?: string;
-};
-
-// 文本内容响应
-export type TextContentResponse = {
-  content: string;
-  format?: string;
+  file_name?: string;
   [key: string]: unknown;
 };
 
+// 文本内容响应
+export type TextContentResponse = string;
+
 // 保存 JSON 文本参数
 export type SaveJsonTextParams = {
-  path: string;
-  content: string;
+  path?: string;
+  content?: string;
+  text?: string;
   name?: string;
+  file_name?: string;
+  [key: string]: unknown;
 };
 
 // 保存响应
@@ -64,7 +69,9 @@ export type ApplyResponse = {
 // 添加节点参数
 export type AddNodeParams = {
   parentPath?: string;
-  name: string;
+  name?: string;
+  parent_id?: string;
+  file_name?: string;
   type?: string;
   [key: string]: unknown;
 };
@@ -78,8 +85,11 @@ export type AddNodeResponse = {
 
 // 删除节点参数
 export type DeleteNodeParams = {
-  path: string;
+  path?: string;
+  id?: string;
   name?: string;
+  file_name?: string;
+  [key: string]: unknown;
 };
 
 // 删除节点响应
@@ -90,9 +100,13 @@ export type DeleteNodeResponse = {
 
 // 重命名节点参数
 export type RenameNodeParams = {
-  path: string;
-  oldName: string;
-  newName: string;
+  path?: string;
+  oldName?: string;
+  newName?: string;
+  id?: string;
+  original_file_name?: string;
+  file_name?: string;
+  [key: string]: unknown;
 };
 
 // 重命名节点响应

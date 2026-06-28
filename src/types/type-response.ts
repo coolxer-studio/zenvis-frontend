@@ -1,6 +1,6 @@
 export type TStandardResponse<T> = {
-  code: number;
+  code?: number;
+  status?: number;
   data: T;
   msg: string;
 };
-

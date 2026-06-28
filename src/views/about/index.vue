@@ -165,6 +165,7 @@ import { ref, nextTick } from "vue";
 import { SystemService } from '@/service/api';
 import { SystemInfo } from '@/types/type-system';
 import { ElMessage } from 'element-plus';
+import { getAssetUrl } from '@u/url';
 
 const systemInfo = ref<SystemInfo>();
 const editingField = ref<string | null>(null);
@@ -283,12 +284,7 @@ const handleBannerUpload = async (event: Event) => {
 };
 
 const getFullUrl = (url: string): string => {
-  if (!url) return '';
-  const timestamp = Date.now();
-  if (url.startsWith('http')) {
-    return `${url}?t=${timestamp}`;
-  }
-  return `/zenvis${url.startsWith('/') ? '' : '/'}${url}?t=${timestamp}`;
+  return getAssetUrl(url);
 };
 
 getSystemInfoFun();

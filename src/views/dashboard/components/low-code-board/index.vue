@@ -1,9 +1,16 @@
 <template>
-  <iframe :src="iframeUrl" frameborder="0" class="dashboard-iframe"></iframe>
+  <iframe
+    :src="iframeUrl"
+    frameborder="0"
+    class="dashboard-iframe"
+    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+    referrerpolicy="no-referrer"
+  ></iframe>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { appBaseUrl, sanitizeIframeUrl } from '@u/url';
 
 const props = defineProps({
   data: {
@@ -14,7 +21,14 @@ const props = defineProps({
   },
 });
 
-const iframeUrl = computed(() => '/amis/page.html?config=' + (props.data?.configIndex || ''));
+const iframeUrl = computed(() =>
+  sanitizeIframeUrl(
+    `/amis/page.html?${new URLSearchParams({
+      config: props.data?.configIndex || '',
+      baseUrl: appBaseUrl,
+    }).toString()}`,
+  ),
+);
 </script>
 
 <style lang="scss" scoped>

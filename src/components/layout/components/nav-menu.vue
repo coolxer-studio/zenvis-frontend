@@ -53,15 +53,15 @@
   import { ref } from 'vue';
   import { User, SwitchButton, Dish } from '@element-plus/icons-vue';
   import { UserService } from '@/service/api';
-  import { ls } from "@u/local-storage";
   import { useRouter } from "vue-router";
   import Password from './nav-password.vue';
   import JSEncrypt from 'jsencrypt'
   import { ElMessage, ElMessageBox } from 'element-plus';
+  import { clearLoginSession, getPermissionList, getUserInfo } from '@u/auth-session';
   const router = useRouter();
-  const menuList = ls.get('__permission__')
+  const menuList = getPermissionList<any[]>() || []
   let showPassword = ref<boolean>(false)
-  const userInfo = ls.get('__user__')
+  const userInfo = getUserInfo<{ name?: string; email?: string }>() || {}
   const current = ref<string>(router.currentRoute.value.name as string);
   const logOut = () => {
     ElMessageBox.confirm('请确认是否退出登录？', '提示', {
@@ -69,8 +69,8 @@
       cancelButtonText: '取消',
       type: 'warning',
     }).then(() => {
-      UserService.doLogOut().then((res: any) => {
-        ls.clear();
+      UserService.doLogOut().then(() => {
+        clearLoginSession();
         router.push({
           name: 'login',
         });

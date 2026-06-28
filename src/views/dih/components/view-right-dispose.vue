@@ -65,6 +65,7 @@ import {
   Document, Files
 } from '@element-plus/icons-vue'
 import * as monaco from 'monaco-editor'
+import { setupMonacoWorkers } from '@u/monaco-workers'
 
 // 当前激活的选项卡
 const activeTab = ref('config')
@@ -114,6 +115,7 @@ allow_processes = ["vim", "nano"]
 onMounted(() => {
   // 初始化Monaco编辑器
   if (editorContainer.value) {
+    setupMonacoWorkers()
     editor = monaco.editor.create(editorContainer.value, {
       value: configContent,
       language: 'toml',

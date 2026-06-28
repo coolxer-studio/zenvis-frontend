@@ -2,15 +2,18 @@
   <iframe
     :src="iframeUrl"
     class="iframe-container"
+    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+    referrerpolicy="no-referrer"
   />
 </template>
 
 <script setup lang="ts">
 import { watch, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import { sanitizeIframeUrl } from '@u/url';
 
 const route = useRoute();
-const iframeUrl = ref<string>('/404'); // 默认值为 404 页面
+const iframeUrl = ref<string>(sanitizeIframeUrl('')); // 默认值为 404 页面
 
 // 提取路径参数并解码 Base64
 function getDecodedUrl(): string {
@@ -19,10 +22,10 @@ function getDecodedUrl(): string {
   try {
     // 解码 Base64
     const decodedParam = atob(encodedParam);
-    return decodedParam;
+    return sanitizeIframeUrl(decodedParam);
   } catch (error) {
     console.error('Base64 解码失败:', error);
-    return '/404'; // 如果解码失败，返回 404 页面
+    return sanitizeIframeUrl('');
   }
 }
 

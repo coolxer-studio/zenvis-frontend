@@ -17,18 +17,13 @@ import pinia from './stores';
 
 import setupComponent from '@c/index';
 
-// 路由守卫
-import guards from '@r/guards';
-
 import '@a/font/index.css';
 import '@a/styles/index.scss';
-import 'leaflet/dist/leaflet.css';
-
 async function initApp() {
   // 创建实例
   const app = createApp(RootApp)
     .use(pinia)
-    .use(guards(router))
+    .use(router)
     .use(ElementPlus) // 使用 Element Plus
     .use(JsonViewer);
     

@@ -12,6 +12,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
 import { AggregateService } from '@/service/api';
+import type { TMsgTagItem, TMsgTagResponse } from '@/types/type-device';
 
 const tagTypes = ['primary', 'success', 'info', 'warning', 'danger'];
 
@@ -31,11 +32,11 @@ const props = defineProps({
   },
 });
 
-const tags = ref([]);
+const tags = ref<TMsgTagItem[]>([]);
 // 添加isLoading状态变量防止重复请求
 const isLoading = ref(false);
 
-const getData = (params) => {
+const getData = (params: Record<string, unknown>) => {
   // 检查是否正在加载，避免重复请求
   if (isLoading.value) {
     return;
@@ -43,8 +44,8 @@ const getData = (params) => {
   
   isLoading.value = true;
   AggregateService.getMsgTag(params)
-    .then(data => {
-      tags.value = data.tags
+    .then((data: TMsgTagResponse) => {
+      tags.value = Array.isArray(data) ? data : data.tags || [];
     })
     .catch(error => {
       console.error('标签数据失败:', error);

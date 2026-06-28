@@ -1,23 +1,16 @@
 import { defineConfig, loadEnv } from 'vite';
 import { createSvgIconsPlugin } from 'vite-plugin-svg-icons';
 import { resolve } from 'path';
-import DefineOptions from 'unplugin-vue-define-options/vite';
 import vue from '@vitejs/plugin-vue';
 import vueJsx from '@vitejs/plugin-vue-jsx';
 import viteCompression from 'vite-plugin-compression';
-
-import {
-  createStyleImportPlugin,
-  VantResolve,
-  ElementPlusResolve,
-  NutuiResolve,
-} from 'vite-plugin-style-import';
 
 // https://vitejs.dev/config/
 export default ({ mode }) => {
   // 读取环境变量
   const env = loadEnv(mode, process.cwd());
-  const reg = new RegExp('^' + env.VITE_BASE_URL);
+  const baseUrl = env.VITE_BASE_URL || '/';
+  const reg = new RegExp(`^${baseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
   return defineConfig({
     base: '/',
     // assetsInclude: ['**/*.png', '**/*.ttf'],
@@ -25,13 +18,10 @@ export default ({ mode }) => {
       port: 8090,
       host: '0.0.0.0',
       proxy: {
-        [env.VITE_BASE_URL]: {
+        [baseUrl]: {
           target: env.VITE_BASE_API,
           changeOrigin: true,
           rewrite: path => path.replace(reg, ''),
-          configure: (proxy, options) => {
-             // 配置代理逻辑
-           },
         },
       },
     },
@@ -63,11 +53,21 @@ export default ({ mode }) => {
               return 'static/other/[name]-[hash][extname]';
             }
           },
-          manualChunks: {
-            // 拆分代码，分包。
-            vue: ['vue', 'vue-router', 'pinia'],
-            // vant: ['vant'],
-            // echarts: ['echarts'],
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return;
+            if (/[\\/]node_modules[\\/](vue|vue-router|pinia)[\\/]/.test(id)) {
+              return 'vue';
+            }
+            if (id.includes('element-plus')) {
+              return 'element-plus';
+            }
+            if (id.includes('monaco-editor')) {
+              return 'monaco';
+            }
+            if (id.includes('echarts')) {
+              return 'echarts';
+            }
+            return 'vendor';
           },
         },
       },
@@ -76,12 +76,12 @@ export default ({ mode }) => {
     css: {
       preprocessorOptions: {
         scss: {
-          additionalData: '@import "@a/styles/variable.scss";',
+          additionalData: '@use "@a/styles/variable.scss" as *;',
         },
         less: {
           javascriptEnabled: true,
           // 增加超时时间避免LESS编译超时
-          timeout: 60000
+          timeout: 60000,
         },
       },
     },
@@ -91,7 +91,7 @@ export default ({ mode }) => {
         '@c': resolve('src/components'),
         '@a': resolve('src/assets'),
         '@r': resolve('src/router'),
-        '@s': resolve('src/store'),
+        '@s': resolve('src/stores'),
         '@v': resolve('src/views'),
         '@u': resolve('src/utils'),
       },
@@ -101,20 +101,12 @@ export default ({ mode }) => {
       // webUpdateNotice({
       //   logVersion: true,
       // }),
-      DefineOptions(),
       viteCompression({
-        verbose: true,
+        verbose: false,
         disable: false,
         threshold: 10240,
         algorithm: 'gzip',
         ext: '.gz',
-      }),
-      createStyleImportPlugin({
-        resolves: [
-          VantResolve(),
-          ElementPlusResolve(),
-          NutuiResolve(),
-        ],
       }),
       vueJsx({
         // options are passed on to @vue/babel-plugin-jsx
@@ -128,10 +120,10 @@ export default ({ mode }) => {
       }),
     ],
     optimizeDeps: {
-      include: ['quill',
-      'monaco-editor/esm/vs/language/json/json.worker',
-      'monaco-editor/esm/vs/language/typescript/ts.worker',
-      'monaco-editor/esm/vs/editor/editor.worker'
+      include: [
+        'monaco-editor/esm/vs/language/json/json.worker',
+        'monaco-editor/esm/vs/language/typescript/ts.worker',
+        'monaco-editor/esm/vs/editor/editor.worker',
       ],
     },
   });

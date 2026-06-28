@@ -73,6 +73,7 @@ import {
   Document, Files, PieChart, Connection
 } from '@element-plus/icons-vue'
 import * as monaco from 'monaco-editor'
+import { setupMonacoWorkers } from '@u/monaco-workers'
 
 // 定义可视化图表接口
 interface VisualizationChart {
@@ -160,6 +161,7 @@ const artifacts = ref<Artifact[]>([
 onMounted(() => {
   // 初始化Monaco编辑器
   if (editorContainer.value) {
+    setupMonacoWorkers()
     editor = monaco.editor.create(editorContainer.value, {
       value: configContent,
       language: 'ini',

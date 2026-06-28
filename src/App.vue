@@ -11,6 +11,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 import { SystemService } from '@/service/api';
 import AiFloatBall from './components/ai-float-ball.vue';
+import { getAssetUrl } from '@u/url';
 
 dayjs.locale('zh-cn');
 
@@ -21,11 +22,7 @@ export default {
     const updateFavicon = (iconUrl: string) => {
       const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
       if (favicon && iconUrl) {
-        const timestamp = Date.now();
-        const fullUrl = iconUrl.startsWith('http')
-          ? `${iconUrl}?t=${timestamp}`
-          : `/zenvis${iconUrl.startsWith('/') ? '' : '/'}${iconUrl}?t=${timestamp}`;
-        favicon.href = fullUrl;
+        favicon.href = getAssetUrl(iconUrl);
       }
     };
 

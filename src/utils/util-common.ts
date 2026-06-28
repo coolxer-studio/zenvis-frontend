@@ -1,7 +1,7 @@
 import { TStandardResponse } from '@/types/type-response';
 import { ElMessage } from 'element-plus';
 import { getTokenSign } from '@u/util-token';
-import { ls } from '@u/local-storage';
+import { clearLoginSession } from '@u/auth-session';
 import router from '@/router';
 
 //const message = new Message();
@@ -37,31 +37,24 @@ export function successResponse<R>(data: TStandardResponse<R>): Promise<R> {
  * 接口返回统一处理
  * */
 export function apiResponse<R>(res: IResult<R>) {
-  return new Promise<R>(async (resolve, reject) => {
-    /*
-     * 只处理调用成功的信息，所有调用错误的信息都抛给《权杖》处理
-     * */
-    if (res.status === 200 && res.data.status == 0) {
-      await successResponse<R>(res.data)
-        .then(result => {
-          resolve(result);
-        })
-        .catch(error => {
-          reject(error);
-        });
-    } else {
-      reject(res.data);
-      if (res.status === 200 && res.data.status == 101) {
-        ls.clear();
-        router.replace(`/user/login`).then(() => {
-          ElMessage.closeAll()
-          ElMessage.error(res.data.msg);
-        });
-        //window.location.reload();
-      } else {
-        ElMessage.error(res.data.msg);
-      }
+  return new Promise<R>((resolve, reject) => {
+    const businessCode = res.data.status ?? res.data.code;
+
+    if (res.status === 200 && businessCode === 0) {
+      resolve(res.data.data);
+      return;
     }
+
+    if (res.status === 200 && businessCode === 101) {
+      clearLoginSession();
+      router.replace('/user/login').then(() => {
+        ElMessage.closeAll();
+        ElMessage.error(res.data.msg);
+      });
+    } else {
+      ElMessage.error(res.data.msg || '请求失败');
+    }
+    reject(res.data);
   });
 }
 

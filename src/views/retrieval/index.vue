@@ -76,7 +76,7 @@
   import { ArrowRight, ArrowLeft, ArrowDown, Close } from '@element-plus/icons-vue';
   import {listResponse, TDynamicTableParams, TPagination, TTable} from "@/types/type-public";
   import { RetrievalService } from '@/service/api';
-  import {merge} from "lodash";
+  import { merge } from 'lodash-es';
   import {EntityResponse} from "@/types/type-retrieval";
   import {ElMessage, ElMessageBox} from "element-plus";
   import type { FormInstance, FormRules } from 'element-plus';

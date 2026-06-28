@@ -21,15 +21,11 @@
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import * as monaco from 'monaco-editor';
 import type { PropType } from 'vue';
-import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
-import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
-import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
-import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
-import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import { Check, DocumentChecked } from '@element-plus/icons-vue';
 import { DihService, PolicyService } from '@/service/api';
 import { useRouter } from 'vue-router';
 import { generateUUID } from '@/utils/util-common'
+import { setupMonacoWorkers } from '@u/monaco-workers';
 
 // 定义类型
 type Theme = 'vs' | 'hc-black' | 'vs-dark';
@@ -155,6 +151,7 @@ const dihQuestion = () => {
           // 尝试获取或创建窗口
           let win = window.open('', QA_WIN_NAME);
           if (win) {
+            win.opener = null;
             win.focus();
             // 优化：如果win.location.href有值，则只对msg参数进行修改后更新href
             if (win.location.href && win.location.href !== 'about:blank') {
@@ -185,25 +182,6 @@ const dihQuestion = () => {
   }
 };
 
-// 设置 Monaco 环境
-self.MonacoEnvironment = {
-  getWorker(_: string, label: string) {
-    if (label === 'json') {
-      return new jsonWorker();
-    }
-    if (['css', 'scss', 'less'].includes(label)) {
-      return new cssWorker();
-    }
-    if (['html', 'handlebars', 'razor'].includes(label)) {
-      return new htmlWorker();
-    }
-    if (['typescript', 'javascript'].includes(label)) {
-      return new tsWorker();
-    }
-    return new EditorWorker();
-  }
-};
-
 // 获取提示信息的API调用
 const getSuggestions = async (fullContent: string, currentLine: string): Promise<string[]> => {
   try {
@@ -221,6 +199,7 @@ const getSuggestions = async (fullContent: string, currentLine: string): Promise
 // 初始化编辑器
 const init = () => {
   if (!codeEditBox.value) return;
+  setupMonacoWorkers();
 
   monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
     noSemanticValidation: true,

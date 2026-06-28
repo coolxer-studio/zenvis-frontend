@@ -8,10 +8,13 @@ export type EncryptKeyResponse = {
 
 // 登录请求参数
 export type LoginParams = {
-  username: string;
+  username?: string;
+  user_name?: string;
   password: string;
   captcha?: string;
+  auth_code?: string;
   key?: string;
+  [key: string]: unknown;
 };
 
 // 登录响应
