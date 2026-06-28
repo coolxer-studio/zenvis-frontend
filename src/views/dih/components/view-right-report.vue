@@ -77,6 +77,7 @@ import * as monaco from 'monaco-editor'
 import "@wangeditor/editor/dist/css/style.css"
 import { Editor, Toolbar } from "@wangeditor/editor-for-vue"
 import { Node, Editor as SlateEditor, Transforms } from 'slate'
+import { setupMonacoWorkers } from '@u/monaco-workers'
 
 // 定义产物接口
 interface Report {
@@ -157,6 +158,7 @@ const reports = ref<Report[]>([
 onMounted(() => {
   // 初始化Monaco编辑器
   if (editorContainer.value) {
+    setupMonacoWorkers()
     editor = monaco.editor.create(editorContainer.value, {
       value: configContent,
       language: 'ini',
@@ -268,13 +270,14 @@ const scrollToSection = (id: string) => {
 // 滚动监听函数：用于在滚动时动态更新当前激活的目录项
 const handleScroll = () => {
   // 确保滚动容器存在
-  if (!scrollContainer) {
+  const container = scrollContainer
+  if (!container) {
     console.warn('scrollContainer is null when trying to handle scroll')
     return
   }
   
   // 获取所有标题元素
-  const headings = scrollContainer.querySelectorAll("h1, h2, h3, h4, h5")
+  const headings = container.querySelectorAll("h1, h2, h3, h4, h5")
   
   // 如果没有找到标题元素，不更新激活索引
   if (headings.length === 0) {
@@ -283,8 +286,8 @@ const handleScroll = () => {
   }
   
   // 获取当前滚动位置和容器高度
-  const scrollTop = scrollContainer.scrollTop // 当前滚动位置
-  const containerHeight = scrollContainer.clientHeight // 可视区域高度
+  const scrollTop = container.scrollTop // 当前滚动位置
+  const containerHeight = container.clientHeight // 可视区域高度
   let closestIndex = 0 // 当前最近的标题索引
   let minDistance = Infinity // 最小距离初始值（设为极大值）
   
@@ -297,7 +300,7 @@ const handleScroll = () => {
     }
     
     // 计算标题顶部相对于容器的绝对位置
-    const headingTop = heading.offsetTop - scrollContainer.offsetTop
+    const headingTop = heading.offsetTop - container.offsetTop
     
     /* 核心算法：计算距离系数
        - scrollTop + containerHeight * 0.3：表示当前可视区域的"触发线"位置

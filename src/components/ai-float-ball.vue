@@ -62,9 +62,10 @@ const wrapperStyle = computed(() => ({
 const isLoginOrDihPage = computed(() => {
   return route.path === '/user/login' || route.path === '/service/dih';
 });
+const hiddenByScroll = ref(false);
 
 const isVisible = computed(() => {
-  return !isLoginOrDihPage.value && !isExpanded.value;
+  return !isLoginOrDihPage.value && !isExpanded.value && !hiddenByScroll.value;
 });
 
 const toggleExpand = () => {
@@ -82,7 +83,7 @@ const shareWindow = () => {
   if (chatSessionId.value) {
     const baseUrl = window.location.origin + window.location.pathname;
     const shareUrl = `${baseUrl}#/service/dih?type=ask&chatSessionId=${chatSessionId.value}`;
-    window.open(shareUrl, '_blank');
+    window.open(shareUrl, '_blank', 'noopener,noreferrer');
   }
 };
 
@@ -129,10 +130,10 @@ let scrollTimeout: ReturnType<typeof setTimeout>;
 const handleScroll = () => {
   if (isLoginOrDihPage.value) return;
   clearTimeout(scrollTimeout);
-  isVisible.value = false;
+  hiddenByScroll.value = true;
   scrollTimeout = setTimeout(() => {
     if (!isLoginOrDihPage.value) {
-      isVisible.value = true;
+      hiddenByScroll.value = false;
     }
   }, 2000);
 };

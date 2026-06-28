@@ -34,7 +34,7 @@ class CLocalStorage {
     this.isEncrypted = isEncrypted;
   }
 
-  readF(key: string, value: string): string {
+  readF(key: string, value: string): any {
     if (value) {
       const item = JSON.parse(value);
       if (item.expiredAt && Number(item.expiredAt) >= Number(Date.now())) {
@@ -44,7 +44,7 @@ class CLocalStorage {
     return '';
   }
 
-  setF(key: string, e: string, expire?: number) {
+  setF(key: string, e: any, expire?: number) {
     return JSON.stringify({
       expiredAt: Number(Date.now()) + (!expire ? 2592e8 : expire),
       value: this.isEncrypted ? enc.Encrypt(JSON.stringify(e), enc.k(window.kk)) : e,
@@ -63,7 +63,7 @@ class CLocalStorage {
     }
   }
 
-  set(key: string, e: string, expire?: number | null | undefined) {
+  set(key: string, e: any, expire?: number | null | undefined) {
     // eslint-disable-next-line no-undefined
     if (null === expire || undefined === expire) expire = 2592e8;
     try {
@@ -78,13 +78,13 @@ class CLocalStorage {
     }
   }
 
-  readFromLocalStorage(key: string): string {
+  readFromLocalStorage(key: string): any {
     let value = window.localStorage.getItem(key);
     if (value === null) value = '';
     return this.readF(key, value);
   }
 
-  readFromMemory(key: string): string {
+  readFromMemory(key: string): any {
     if (window.esl) {
       const value = hasOwn(window.esl, key) ? window.esl[key] : '';
       return this.readF(key, value);
@@ -93,7 +93,7 @@ class CLocalStorage {
     }
   }
 
-  setInMemory(key: string, e: string, expire: number) {
+  setInMemory(key: string, e: any, expire: number) {
     if (window.esl) {
       window.esl[key] = this.setF(key, e, expire);
     } else {
@@ -102,7 +102,7 @@ class CLocalStorage {
     }
   }
 
-  setInLocalStorage(key: string, e: string, expire: number) {
+  setInLocalStorage(key: string, e: any, expire: number) {
     window.localStorage.setItem(key, this.setF(key, e, expire));
   }
 

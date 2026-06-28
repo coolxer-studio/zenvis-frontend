@@ -11,6 +11,7 @@ import {
   DeleteChatSessionResponse,
   GetChatSessionParams,
 } from '@/types/type-dih';
+import { withBaseUrl } from '@u/url';
 
 const prefix = '/api/v1/dih';
 
@@ -44,7 +45,7 @@ export class DihService {
    */
   static async chat(params: ChatParams): Promise<ReadableStreamDefaultReader<Uint8Array> | null> {
     try {
-      const response = await fetch(`${import.meta.env.VITE_BASE_URL || ''}${prefix}/chat`, {
+      const response = await fetch(withBaseUrl(`${prefix}/chat`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json;charset=UTF-8',

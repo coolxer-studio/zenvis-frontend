@@ -12,5 +12,9 @@ const components = [
 ];
 
 export default function (app: App) {
-  components.forEach(item => app.component(item.name, item));
+  components.forEach(item => {
+    if (item.name) {
+      app.component(item.name, item);
+    }
+  });
 }

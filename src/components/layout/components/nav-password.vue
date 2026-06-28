@@ -118,8 +118,7 @@
   const handleOk = () => {
     formRef.value?.validate((valid: boolean) => {
       if (valid) {
-        const data = { ...formPassword };
-        delete data.password_copy;
+        const { password_copy, ...data } = formPassword;
         emit('on-ok', data);
       }
     });

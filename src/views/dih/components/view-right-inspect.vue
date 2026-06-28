@@ -62,7 +62,7 @@ import {
 } from '@element-plus/icons-vue'
 import * as monaco from 'monaco-editor'
 import BaseChart from '@/components/echarts/base-chart.vue'
-import type { EChartsOption } from 'echarts'
+import { setupMonacoWorkers } from '@u/monaco-workers'
 
 // 定义可视化图表接口
 interface VisualizationChart {
@@ -88,7 +88,7 @@ const chartLoading = ref(false)
 // 图表数据
 interface ChartData {
   chartType: string
-  option: EChartsOption | null
+  option: any | null
   rawData: any[]
   columns: string[]
 }
@@ -181,6 +181,7 @@ onMounted(() => {
 
   // 初始化Monaco编辑器
   if (editorContainer.value) {
+    setupMonacoWorkers()
     editor = monaco.editor.create(editorContainer.value, {
       value: configContent,
       language: 'ini',

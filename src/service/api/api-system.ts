@@ -40,7 +40,7 @@ export class SystemService {
   }
 
   static async updateSystemInfo(params: SystemInfo): Promise<SystemInfo> {
-    const res = request<SystemInfo>(`${prefix}/about/info/update`, {
+    const res = await request<SystemInfo>(`${prefix}/about/info/update`, {
       system_title: params.systemTitle,
       product_name: params.productName,
       product_version: params.productVersion,

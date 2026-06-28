@@ -12,6 +12,8 @@
               frameborder="0"
               width="100%"
               height="100%"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+              referrerpolicy="no-referrer"
             ></iframe>
           </div>
         </el-tab-pane>
@@ -25,6 +27,8 @@
               frameborder="0"
               width="100%"
               height="100%"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+              referrerpolicy="no-referrer"
             ></iframe>
           </div>
         </el-tab-pane>
@@ -38,6 +42,8 @@
               frameborder="0"
               width="100%"
               height="100%"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+              referrerpolicy="no-referrer"
             ></iframe>
           </div>
         </el-tab-pane>
@@ -107,6 +113,8 @@
               frameborder="0"
               width="100%"
               height="100%"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+              referrerpolicy="no-referrer"
             ></iframe>
           </div>
         </el-tab-pane>
@@ -120,6 +128,8 @@
               frameborder="0"
               width="100%"
               height="100%"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+              referrerpolicy="no-referrer"
             ></iframe>
           </div>
         </el-tab-pane>
@@ -163,6 +173,8 @@ import {
   Document, Files, PieChart, Connection, UploadFilled, Delete, Check
 } from '@element-plus/icons-vue'
 import * as monaco from 'monaco-editor'
+import { sanitizeIframeUrl } from '@u/url'
+import { setupMonacoWorkers } from '@u/monaco-workers'
 
 // 定义产物接口
 interface Product {
@@ -176,11 +188,11 @@ const activeTab = ref('doc')
 
 // plugin-config 路由地址
 const baseUrl = '/#/plugin/config/plugin-build|ef62f8fc-f5f8-4f67-b164-a045df47000b'
-const docUrl = computed(() => baseUrl + '|00_doc')
-const metaUrl = computed(() => baseUrl + '|01_meta')
-const pushTaskUrl = computed(() => baseUrl + '|02_push-task')
-const uiUrl = computed(() => baseUrl + '|04_ui')
-const menuUrl = computed(() => baseUrl + '|05_menu')
+const docUrl = computed(() => sanitizeIframeUrl(baseUrl + '|00_doc'))
+const metaUrl = computed(() => sanitizeIframeUrl(baseUrl + '|01_meta'))
+const pushTaskUrl = computed(() => sanitizeIframeUrl(baseUrl + '|02_push-task'))
+const uiUrl = computed(() => sanitizeIframeUrl(baseUrl + '|04_ui'))
+const menuUrl = computed(() => sanitizeIframeUrl(baseUrl + '|05_menu'))
 
 // Monaco Editor 相关
 const editorContainer = ref<HTMLElement | null>(null)
@@ -302,6 +314,7 @@ const getIconSrc = (icon: any): string | undefined => {
 onMounted(() => {
   // 初始化Monaco编辑器
   if (editorContainer.value) {
+    setupMonacoWorkers()
     editor = monaco.editor.create(editorContainer.value, {
       value: configContent,
       language: 'ini',

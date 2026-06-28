@@ -1,9 +1,18 @@
 <template>
-  <iframe :src="data.htmlPath" frameborder="0" class="dashboard-iframe"></iframe>
+  <iframe
+    :src="iframeUrl"
+    frameborder="0"
+    class="dashboard-iframe"
+    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+    referrerpolicy="no-referrer"
+  ></iframe>
 </template>
 
 <script setup lang="ts">
-defineProps({
+import { computed } from 'vue';
+import { sanitizeIframeUrl } from '@u/url';
+
+const props = defineProps({
   data: {
     type: Object,
     default: () => {
@@ -11,6 +20,8 @@ defineProps({
     },
   },
 });
+
+const iframeUrl = computed(() => sanitizeIframeUrl(String(props.data?.htmlPath || '')));
 </script>
 
 <style lang="scss" scoped>

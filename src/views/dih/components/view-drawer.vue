@@ -21,7 +21,7 @@
               <div class="status-info">
                 <h4>{{ status.title }}</h4>
                 <div class="status-value">{{ status.value }}</div>
-                <div class="status-desc" v-html="status.desc"></div>
+                <div class="status-desc" v-html="sanitizeHtml(status.desc)"></div>
               </div>
             </div>
           </el-col>
@@ -159,6 +159,7 @@ import {
   Document,
   MagicStick
 } from '@element-plus/icons-vue'
+import DOMPurify from 'dompurify'
 
 // 定义状态卡片数据结构
 interface StatusItem {
@@ -194,6 +195,8 @@ interface ActivityItem {
   buttonText: string
   buttonType: 'primary' | 'danger' | 'info'
 }
+
+const sanitizeHtml = (value: string): string => DOMPurify.sanitize(value)
 
 // 状态数据
 const statusData = ref<StatusItem[]>([

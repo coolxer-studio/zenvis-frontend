@@ -6,7 +6,7 @@ interface Message {
 }
 
 export type ChatSession = {
-  id: number;
+  id: string;
   sessionId: string;
   title: string;
   type: string;
@@ -33,19 +33,25 @@ export type UploadFileResponse = {
 
 // 建议请求参数
 export type SuggestParams = {
-  query: string;
+  query?: string;
+  content?: string;
+  current_line?: string;
   context?: string;
   limit?: number;
+  [key: string]: unknown;
 };
 
 // 聊天请求参数
 export type ChatParams = {
-  session_id: string;
+  session_id?: string;
+  chat_id?: string;
+  type?: string;
   message: string;
   model?: string;
   deep_think?: boolean;
   online_search?: boolean;
   context?: string[];
+  [key: string]: unknown;
 };
 
 // 聊天会话分页列表参数
@@ -79,4 +85,6 @@ export type DeleteChatSessionResponse = {
 // 获取聊天会话参数
 export type GetChatSessionParams = {
   session_id?: string;
+  type?: string;
+  [key: string]: unknown;
 };

@@ -12,29 +12,32 @@ export type TDeviceListResponse = {
 
 // 消息标签参数
 export type TGetMsgTagParams = {
-  entity_name: string;
+  entity_name?: string;
   start_time?: string;
   end_time?: string;
 };
 
 // 消息标签项
 export type TMsgTagItem = {
-  tag: string;
-  count: number;
+  tag?: string;
+  count?: number;
+  type?: string;
+  value_list?: string[];
+  [key: string]: unknown;
   percentage?: number;
 };
 
 // 消息标签响应
-export type TMsgTagResponse = {
+export type TMsgTagResponse = TMsgTagItem[] | {
   tags: TMsgTagItem[];
   total: number;
 };
 
 // 消息趋势参数
 export type TGetMsgTrendParams = {
-  entity_name: string;
-  start_time: string;
-  end_time: string;
+  entity_name?: string;
+  start_time?: string;
+  end_time?: string;
   interval?: 'hour' | 'day' | 'week' | 'month';
 };
 
@@ -52,7 +55,7 @@ export type TMsgTrendResponse = {
 
 // 消息列表参数
 export type TGetMsgListParams = {
-  entity_name: string;
+  entity_name?: string;
   page?: number;
   size?: number;
   sort_by?: string;
@@ -76,7 +79,7 @@ export type TMsgListResponse = {
 
 // 条目列表参数
 export type TGetEntryListParams = {
-  entity_name: string;
+  entity_name?: string;
   page?: number;
   size?: number;
   [key: string]: unknown;

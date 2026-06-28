@@ -1,8 +1,20 @@
 import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router';
-import { ls } from '@u/local-storage';
+import { hasLoginSession, setAuthToken } from '@u/auth-session';
 import layout_blank from '@c/layout/layout-blank.vue';
 import layout_header from '@c/layout/layout-header.vue';
 import layout_full from '@c/layout/layout-full.vue';
+
+const LOGIN_PATH = '/user/login';
+const HOME_PATH = '/dashboard/index';
+const PUBLIC_PATHS = new Set([LOGIN_PATH, '/ExceptionPage404', '/ExceptionPage403', '/ExceptionPage500']);
+
+const firstQueryValue = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return typeof value[0] === 'string' ? value[0] : '';
+  }
+  return typeof value === 'string' ? value : '';
+};
+
 const basicRoutes: Array<RouteRecordRaw> = [
   {
     path: `/user`,
@@ -155,6 +167,10 @@ const routes: Array<RouteRecordRaw> = [
     name: 'ExceptionPage500',
     component: () => import('@v/pages-error/500.vue'),
   },
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/ExceptionPage404',
+  },
 ];
 
 const router = createRouter({
@@ -165,40 +181,30 @@ const router = createRouter({
 /**
  * description: 路由守卫设置
  */
-router.beforeEach(async (to, from, next) => {
-  // 读取token值
-  let loginStatus = ls.get('__login__');
-  // 检查系统配置是否存在
-  // await checkSystemConfig();
+router.beforeEach(to => {
+  const token = firstQueryValue(to.query.token);
+  const salt = firstQueryValue(to.query.salt);
+  if (token) {
+    setAuthToken(token, salt);
+  }
 
-  if ((loginStatus === null || loginStatus === '') && to.path !== `/user/login`) {
-    // 没有token，同时访问地址不是登录页--> 跳转登录页，带参数
-    if (to.fullPath == '/ExceptionPage500') {
-      next({
-        path: `/user/login`,
-      });
-    } else {
-      next({
-        path: `/user/login`,
-        query: { redirect: to.fullPath },
-      });
-    }
-  } else if ((loginStatus === null || loginStatus === '') && to.path === `/user/login`) {
-    // 没有token，同时访问地址不是登录页--> 跳转登录页，带参数
-    next();
-  } else if (loginStatus !== null && loginStatus !== '' && to.path === `/user/login`) {
-    // 有，同时访问地址是登录页--> 跳转首页
-    next('/dashboard/index');
+  if (to.matched.length === 0) {
+    return { path: '/ExceptionPage404', replace: true };
   }
-  // console.log(to.matched);
-  if (to.matched.length !== 0) {
-    next();
-  } else {
-    next({
-      path: '/404',
-      replace: true,
-    });
+
+  const isLoggedIn = hasLoginSession();
+  if (!isLoggedIn && !PUBLIC_PATHS.has(to.path)) {
+    return {
+      path: LOGIN_PATH,
+      query: { redirect: to.fullPath },
+    };
   }
+
+  if (isLoggedIn && to.path === LOGIN_PATH) {
+    return HOME_PATH;
+  }
+
+  return true;
 });
 
 export default router;

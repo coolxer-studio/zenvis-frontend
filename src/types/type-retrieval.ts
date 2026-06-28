@@ -61,9 +61,10 @@ export type DisplayAttributeResponse = {
 
 // 检索条件参数
 export type CriteriaParams = {
-  entity: string;
-  criteria_list: TCriteriaList[];
+  entity?: string;
+  criteria_list?: TCriteriaList[];
   attribute_list?: string[];
+  [key: string]: unknown;
 };
 
 // 检索条件响应
@@ -75,11 +76,12 @@ export type CriteriaResponse = {
 
 // 规则参数
 export type RuleParams = {
-  name: string;
+  name?: string;
   description?: string;
-  entity: string;
-  criteria_list: TCriteriaList[];
+  entity?: string;
+  criteria_list?: TCriteriaList[];
   attribute_list?: string[];
+  [key: string]: unknown;
 };
 
 // 规则响应
@@ -103,7 +105,9 @@ export type RuleDetailResponse = {
 
 // 删除规则参数
 export type DeleteRuleParams = {
-  rule_id: string;
+  rule_id?: string;
+  id?: string;
+  [key: string]: unknown;
 };
 
 // 删除规则响应

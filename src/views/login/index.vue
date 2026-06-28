@@ -61,7 +61,12 @@
         <el-button class="throttle" size="large" type="primary" native-type="submit" :loading="loginLoading">
           登 录
         </el-button>
-        <a v-if="systemInfo?.integrateLink" target="_blank" :href="systemInfo.integrateLink">接入指南</a>
+        <a
+          v-if="systemInfo?.integrateLink"
+          target="_blank"
+          rel="noopener noreferrer"
+          :href="systemInfo.integrateLink"
+        >接入指南</a>
       </el-form-item>
     </el-form>
   </div>
@@ -76,7 +81,9 @@ import { useRouter } from 'vue-router';
 import { UserService, SystemService } from '@/service/api';
 import { SystemInfo } from '@/types/type-system';
 import JSEncrypt from 'jsencrypt';
-import { ls } from '@u/local-storage';
+import { setLoginSession } from '@u/auth-session';
+import { getAssetUrl, withCacheBuster, withBaseUrl } from '@u/url';
+import loginBanner from '@a/images/login_banner.png';
 
 interface IFromLogin {
   user_name: string;
@@ -100,7 +107,7 @@ export default defineComponent({
     });
 
     const captchaUrl = computed(() => {
-      return `/zenvis/api/v1/system/login/kaptcha?${timestamp.value}=${timestamp.value}`;
+      return `${withCacheBuster(withBaseUrl('/api/v1/system/login/kaptcha'))}&_=${timestamp.value}`;
     });
 
     const onFinish = async () => {
@@ -114,9 +121,7 @@ export default defineComponent({
           password: encryptor.encrypt(formLogin.password) as string
         });
         
-        ls.set('__login__', 'ok');
-        ls.set('__user__', loginRes.user);
-        ls.set('__permission__', loginRes.permission);
+        setLoginSession(loginRes);
         
         router.push({
           name: 'dashboard',
@@ -145,20 +150,15 @@ export default defineComponent({
     const getLogoUrl = () => {
       if (!systemInfo.value?.systemLogo) return '';
       const url = systemInfo.value.systemLogo;
-      if (url.startsWith('http')) {
-        return `${url}?t=${Date.now()}`;
-      }
-      return `/zenvis${url.startsWith('/') ? '' : '/'}${url}?t=${Date.now()}`;
+      return getAssetUrl(url);
     };
 
     const getBannerStyle = () => {
       if (!systemInfo.value?.systemBanner) {
-        return { background: 'url(@a/images/login_banner.png)' };
+        return { background: `url(${loginBanner})` };
       }
       const url = systemInfo.value.systemBanner;
-      const bannerUrl = url.startsWith('http') 
-        ? `${url}?t=${Date.now()}`
-        : `/zenvis${url.startsWith('/') ? '' : '/'}${url}?t=${Date.now()}`;
+      const bannerUrl = getAssetUrl(url);
       return { background: `url(${bannerUrl})` };
     };
 
@@ -265,12 +265,14 @@ export default defineComponent({
 
   :deep(.el-form-item) {
     margin-bottom: 18px;
-    :deep(.el-form-item__label) {
-      display: none;
-    }
-    :deep(.el-form-item__content) {
-      margin-left: 0;
-    }
+  }
+
+  :deep(.el-form-item .el-form-item__label) {
+    display: none;
+  }
+
+  :deep(.el-form-item .el-form-item__content) {
+    margin-left: 0;
   }
 
   .login-logo-title {

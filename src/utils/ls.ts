@@ -1,21 +1,22 @@
 import { ls } from '@u/local-storage';
+import { getAuthSalt, getAuthToken, setAuthToken } from '@u/auth-session';
 
 const key = 'aqfuzt-v2-';
 
 export function getToken(): string {
-  return ls.get(key + 'token') || '';
+  return getAuthToken();
 }
 
 export function getSalt(): string {
-  return ls.get(key + 'salt') || '';
+  return getAuthSalt();
 }
 
 export function setToken(token: string): void {
-  ls.set(key + 'token', token);
+  setAuthToken(token);
 }
 
-export function setSalt(token: string): void {
-  ls.set(key + 'salt', token);
+export function setSalt(salt: string): void {
+  setAuthToken(undefined, salt);
 }
 
 export function getLang(): string {

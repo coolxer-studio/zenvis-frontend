@@ -38,7 +38,7 @@
 import { reactive, ref, watch, onMounted } from "vue";
 import { TDynamicTableParams, TPagination, TTable } from "@/types/type-public";
 import { TDeviceListResponse } from "@/types/type-device";
-import { merge, omit } from "lodash";
+import { merge, omit } from 'lodash-es';
 import { AggregateService } from '@/service/api';
 import { ElMessage } from 'element-plus';
 

@@ -134,6 +134,7 @@ import { useRouter } from 'vue-router'
 import { generateUUID } from '@/utils/util-common'
 import {getCurrentFormattedDate} from '@/utils/util-time'
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import BaseChart from '@/components/echarts/base-chart.vue';
 
 // Set marked.js global options for markdown parsing
@@ -817,7 +818,7 @@ const dislikeMessage = (index: number) => {
 
 // 添加解析Markdown的方法
 const parseMarkdown = (content: string) => {
-  return marked.parse(content);
+  return DOMPurify.sanitize(marked.parse(content) as string);
 };
 </script>
 

@@ -119,17 +119,40 @@
 <script setup lang="ts">
   import {ElMessage, ElMessageBox} from 'element-plus';
   import { ArrowDown, Search, Bottom, ArrowUp, DocumentCopy } from '@element-plus/icons-vue';
-  import {TDynamicTableParams, TPagination, TTable} from '@/types/type-public';
-  import { getContainer } from '@/types/type-modal';
-  import {ref, toRaw} from "vue";
+  import {onBeforeUnmount, onMounted, ref, toRaw} from "vue";
   import {useRouter} from "vue-router";
   import useClipboard from 'vue-clipboard3'
-  const props = defineProps({
-    state: Object
+  import type { TDynamicTableParams, TTable } from '@/types/type-public';
+
+  type RetrievalTableState = Omit<TDynamicTableParams, 'sourceColumns' | 'selectedCol' | 'selectedKeyCol'> & Omit<TTable<any>, 'columns'> & {
+    sourceColumns: any[];
+    selectedCol: any[];
+    selectedKeyCol?: string[];
+    columns: any[];
+    loading?: boolean;
+  };
+
+  const props = withDefaults(defineProps<{
+    state?: RetrievalTableState;
+  }>(), {
+    state: () => ({
+      sourceColumns: [],
+      disabledTitles: [],
+      selectedCol: [],
+      selectedKeyCol: [],
+      columns: [],
+      data: [],
+      pagination: {
+        current: 1,
+        pageSize: 10,
+        total: 0,
+      },
+      loading: false,
+    }),
   });
   const router = useRouter();
   const { toClipboard } = useClipboard()
-  const copy = async (val) => {
+  const copy = async (val: string) => {
     try{
       await toClipboard(val)
       ElMessage.success('已复制' + ': ' + val);
@@ -137,8 +160,8 @@
       ElMessage.error('复制失败,请手动复制!');
     }
   }
-  const touchCopy = (val) => {
-    copy(val)
+  const touchCopy = (val: unknown) => {
+    copy(String(val))
   }
   const emit = defineEmits({
     'on-display': null,
@@ -161,7 +184,7 @@
     const minWidth = baseWidth + charCount * charWidth
     return Math.max(minWidth, 120)
   }
-  const handleResizeColumn = (w, col) => {
+  const handleResizeColumn = (w: number, col: unknown) => {
     emit('on-resize', {w, col});
   }
 
@@ -171,7 +194,7 @@
 const onSearch = () => {
 
 }
-  const showData = (val) => {
+  const showData = (val: unknown) => {
     emit('on-click', val);
   }
   const del = (id: number) => {
@@ -188,7 +211,7 @@ const onSearch = () => {
     }).catch(() => {
     });
   };
-  const getSelect = (val) => {
+  const getSelect = (val: string[]) => {
     const displayCol = [] as any
     props.state?.sourceColumns.map((e: any) => {
       if (val.indexOf(e.dataIndex) != -1) {
@@ -198,27 +221,39 @@ const onSearch = () => {
 
     emit('on-display', toRaw({entity: props.state?.entity, attributeList: displayCol}));
   }
-  const goAggregate = (field,value) => {
-    window.open('/#/aggregate/index?entity_name='+props.state?.entity+'&'+field+'=' + value)
+  const goAggregate = (field: string, value: unknown) => {
+    const query = new URLSearchParams({
+      entity_name: props.state?.entity || '',
+      [field]: String(value),
+    });
+    window.open(`/#/aggregate/index?${query.toString()}`, '_blank', 'noopener,noreferrer')
     return
   }
-  const handleCurrentChange = (val) => {
+  const handleCurrentChange = (val: number) => {
     emit('on-change', { pagination: { current: val } });
   }
-  const handleSizeChange = (val) => {
+  const handleSizeChange = (val: number) => {
     emit('on-change', { pagination: { pageSize: val, current: 1 } });
   }
-  const handleSortChange = (val) => {
+  const handleSortChange = (val: unknown) => {
     emit('on-change', { sorter: val });
   }
-  document.addEventListener('click', (event)=> {
+  const handleDocumentClick = () => {
     colShow.value = false
+  }
+
+  onMounted(() => {
+    document.addEventListener('click', handleDocumentClick)
   })
-  const swapArray = (arr, index1, index2) => {
+
+  onBeforeUnmount(() => {
+    document.removeEventListener('click', handleDocumentClick)
+  })
+  const swapArray = (arr: any[], index1: number, index2: number) => {
     arr[index1] = arr.splice(index2, 1, arr[index1])[0];
     return arr;
   }
-  const fixedOption = (str, item, index) => {
+  const fixedOption = (str: string | boolean, item: any, index: number) => {
     item.fixed = str
     let index1 = 0
     let index2 = 0

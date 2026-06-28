@@ -33,9 +33,21 @@
 </template>
 
 <script setup lang="ts">
-  defineProps({
-    state: Object,
-    scroll: Number,
+  type DetailsTableState = {
+    data: any[];
+    loading?: boolean;
+    sourceColumns: any[];
+  };
+
+  withDefaults(defineProps<{
+    state?: DetailsTableState;
+    scroll?: number;
+  }>(), {
+    state: () => ({
+      data: [],
+      loading: false,
+      sourceColumns: [],
+    }),
   });
   const emit = defineEmits({
     'on-change': null,
@@ -45,7 +57,7 @@
   const change = (pagination: any): void => {
     emit('on-change', { pagination });
   };
-  const showData = (val) => {
+  const showData = (val: unknown) => {
     emit('on-click', val);
   }
 </script>

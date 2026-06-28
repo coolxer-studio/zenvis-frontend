@@ -178,7 +178,7 @@
 </template>
 
 <script setup>
-import { onMounted, onBeforeUnmount, watch, ref, reactive } from 'vue';
+import { onMounted, onBeforeUnmount, watch, ref, reactive, nextTick } from 'vue';
 
 import dayjs from 'dayjs';
 
@@ -211,6 +211,7 @@ const timeData = reactive({
 const textOuterRef = ref(null);
 const textInnerRef = ref(null);
 let scrollTimer = null;
+let scrollRestartTimer = null;
 const intervalTime = 100;
 
 const getTime = (num = 0) => {
@@ -305,6 +306,7 @@ const startScroll = () => {
   // 先清除已存在的定时器
   if (scrollTimer) {
     clearInterval(scrollTimer);
+    scrollTimer = null;
   }
 
   // 确保DOM元素存在
@@ -312,12 +314,15 @@ const startScroll = () => {
     return;
   }
 
-  // 复制内容以实现无缝滚动
-  const innerContent = textInnerRef.value.innerHTML;
-  textInnerRef.value.innerHTML = innerContent + innerContent;
+  const scrollContent =
+    textInnerRef.value.dataset.scrollContent || textInnerRef.value.innerHTML;
+  textInnerRef.value.dataset.scrollContent = scrollContent;
+  textInnerRef.value.innerHTML = scrollContent;
+  textOuterRef.value.scrollTop = 0;
 
   // 只有当内容足够滚动时才启动定时器
   if (textInnerRef.value.offsetHeight > textOuterRef.value.offsetHeight) {
+    textInnerRef.value.innerHTML = scrollContent + scrollContent;
     scrollTimer = setInterval(() => {
       // 当滚动到底部时重置到顶部
       if (textOuterRef.value.scrollTop >= textInnerRef.value.offsetHeight / 2) {
@@ -332,12 +337,14 @@ const startScroll = () => {
 const handleMouseEnter = () => {
   if (scrollTimer) {
     clearInterval(scrollTimer);
+    scrollTimer = null;
   };
 };
 
 const handleMouseLeave = () => {
   if (scrollTimer) {
     clearInterval(scrollTimer);
+    scrollTimer = null;
   }
   startScroll();
 };
@@ -350,13 +357,14 @@ const showTime = () => {
   timeData.year = today.getFullYear() + '年';
   timeData.month = (today.getMonth() + 1) + '月';
   timeData.day = today.getDate() + '日';
-  timeData.weekday = weekdays[today.getDay() - 1] || '';
+  const weekdayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1;
+  timeData.weekday = weekdays[weekdayIndex] || '';
   
   let hours = today.getHours();
   let minutes = today.getMinutes();
   
-  timeData.hours = hours < 10 ? '0' + hours : hours + ':';
-  timeData.minutes = minutes < 10 ? '0' + minutes : minutes;
+  timeData.hours = `${hours < 10 ? '0' : ''}${hours}:`;
+  timeData.minutes = `${minutes < 10 ? '0' : ''}${minutes}`;
 };
 
 let timeTimer = null;
@@ -374,7 +382,7 @@ onMounted(() => {
   querySystemRealInfo();
 
   // 延迟启动滚动效果
-  setTimeout(() => {
+  scrollRestartTimer = setTimeout(() => {
     startScroll();
   }, 3000);
 });
@@ -383,6 +391,9 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (scrollTimer) {
     clearInterval(scrollTimer);
+  }
+  if (scrollRestartTimer) {
+    clearTimeout(scrollRestartTimer);
   }
   if (timeTimer) {
     clearInterval(timeTimer);
@@ -401,11 +412,16 @@ watch(
 
 watch(
   () => realInfo.value,
-  () => {
+  async () => {
     // 当realInfo变化时重新启动滚动
-    setTimeout(() => {
-      startScroll();
-    }, 100);
+    await nextTick();
+    if (textInnerRef.value) {
+      delete textInnerRef.value.dataset.scrollContent;
+    }
+    if (scrollRestartTimer) {
+      clearTimeout(scrollRestartTimer);
+    }
+    scrollRestartTimer = setTimeout(startScroll, 100);
   }
 );
 </script>
@@ -1103,4 +1119,3 @@ watch(
 }
 
 </style>
-
