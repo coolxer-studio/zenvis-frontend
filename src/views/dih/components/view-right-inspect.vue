@@ -3,7 +3,7 @@
     <!-- 选项卡 -->
     <div class="tab-container">
       <el-tabs v-model="activeTab" class="right-tabs">
-        <el-tab-pane label="可视化" name="visualization">
+        <el-tab-pane label="图表库" name="visualization">
           <!-- 动态图表区域 -->
           <div v-if="chartData.option" class="visualization-container">
             <div class="visualization-header">
@@ -50,6 +50,38 @@
             </div>
           </div>
         </el-tab-pane>
+
+        <el-tab-pane label="可视化页面" name="visualPages">
+          <div class="resource-container">
+            <el-table :data="visualPages" stripe style="width: 100%">
+              <el-table-column prop="id" label="ID" min-width="100" />
+              <el-table-column prop="name" label="名称" min-width="180" show-overflow-tooltip />
+              <el-table-column label="跳转链接" min-width="180" show-overflow-tooltip>
+                <template #default="scope">
+                  <el-link type="primary" :href="scope.row.jumpLink" :underline="false">
+                    {{ scope.row.jumpLink }}
+                  </el-link>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="数据看板" name="dashboards">
+          <div class="resource-container">
+            <el-table :data="dashboards" stripe style="width: 100%">
+              <el-table-column prop="id" label="ID" min-width="100" />
+              <el-table-column prop="name" label="名称" min-width="180" show-overflow-tooltip />
+              <el-table-column label="跳转链接" min-width="180" show-overflow-tooltip>
+                <template #default="scope">
+                  <el-link type="primary" :href="scope.row.jumpLink" :underline="false">
+                    {{ scope.row.jumpLink }}
+                  </el-link>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -76,6 +108,13 @@ interface Artifact {
   name: string
   path: string
   icon: any
+}
+
+// 定义资源项接口
+interface ResourceItem {
+  id: string
+  name: string
+  jumpLink: string
 }
 
 // 当前激活的选项卡
@@ -153,6 +192,44 @@ const visualizationCharts = ref<VisualizationChart[]>([
     title: '进程关系图',
     description: '进程调用关系图',
     icon: Connection
+  }
+])
+
+// 可视化页面数据
+const visualPages = ref<ResourceItem[]>([
+  {
+    id: 'page-001',
+    name: '主机行为分析页面',
+    jumpLink: '/visualization/pages/host-behavior'
+  },
+  {
+    id: 'page-002',
+    name: '网络连接分析页面',
+    jumpLink: '/visualization/pages/network-connection'
+  },
+  {
+    id: 'page-003',
+    name: '风险事件研判页面',
+    jumpLink: '/visualization/pages/risk-analysis'
+  }
+])
+
+// 数据看板数据
+const dashboards = ref<ResourceItem[]>([
+  {
+    id: 'dashboard-001',
+    name: '安全态势总览',
+    jumpLink: '/dashboard/security-overview'
+  },
+  {
+    id: 'dashboard-002',
+    name: '巡检指标看板',
+    jumpLink: '/dashboard/inspection-metrics'
+  },
+  {
+    id: 'dashboard-003',
+    name: '资产风险看板',
+    jumpLink: '/dashboard/asset-risk'
   }
 ])
 
@@ -237,6 +314,7 @@ const viewArtifact = (index: number) => {
   console.log(`查看产物: ${artifact.name}`)
   // 这里可以添加实际的查看逻辑
 }
+
 </script>
 
 <style scoped>
@@ -370,6 +448,11 @@ const viewArtifact = (index: number) => {
 .artifact-actions {
   display: flex;
   gap: 8px;
+}
+
+/* 资源列表样式 */
+.resource-container {
+  padding: 12px;
 }
 
 /* 配置面板样式 */

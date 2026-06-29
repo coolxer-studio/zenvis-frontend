@@ -164,11 +164,7 @@
           :class="{ 'active': router.currentRoute.value.query.type ===  suggestion.type}"
           @click="selectSuggestion(index)">
           <el-icon class="suggestion-icon">
-            <component 
-              :is="typeof suggestion.icon === 'string' && suggestion.icon.startsWith('data:image') ? 'img' : suggestion.icon" 
-              :src="typeof suggestion.icon === 'string' && suggestion.icon.startsWith('data:image') ? suggestion.icon : undefined"
-              :class="{ 'custom-icon': typeof suggestion.icon === 'string' && suggestion.icon.startsWith('data:image') }"
-            />
+            <component :is="suggestion.icon" />
           </el-icon>
           {{ suggestion.label }}
         </el-button>
@@ -1433,14 +1429,6 @@ const dislikeMessage = (index: number) => {
   margin-right: 5px;
   width: 1em;
   height: 1em;
-}
-
-.custom-icon {
-  width: 1em;
-  height: 1em;
-  vertical-align: -0.15em;
-  fill: currentColor;
-  overflow: hidden;
 }
 
 .panel-header {

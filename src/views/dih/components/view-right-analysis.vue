@@ -1,143 +1,73 @@
 <template>
   <div class="panel right-panel">
-    <!-- 选项卡 -->
     <div class="tab-container">
       <el-tabs v-model="activeTab" class="right-tabs">
-        <el-tab-pane label="分析链" name="analysisChain">
-          <div class="analysis-chain-container">
-            <div class="mindmap-container">
-              <div class="mindmap-placeholder" v-if="!mindmapDataLoaded">
-                <el-icon><Connection /></el-icon>
-                <p>分析链思维导图</p>
-                <p class="description">展示分析思路和步骤的思维导图</p>
-                <el-button type="primary" @click="loadMindmapData">加载思维导图</el-button>
-              </div>
-              <div class="mindmap-content" v-else>
-                <!-- 这里将展示思维导图 -->
-                <div class="mindmap-chart">
-                  <div class="mindmap-node root">
-                    <div class="node-content">分析目标</div>
-                    <div class="children">
-                      <div class="mindmap-node child">
-                        <div class="node-content">数据采集</div>
-                        <div class="children">
-                          <div class="mindmap-node leaf">网络流量</div>
-                          <div class="mindmap-node leaf">进程行为</div>
-                          <div class="mindmap-node leaf">文件操作</div>
-                        </div>
-                      </div>
-                      <div class="mindmap-node child">
-                        <div class="node-content">威胁检测</div>
-                        <div class="children">
-                          <div class="mindmap-node leaf">异常连接</div>
-                          <div class="mindmap-node leaf">恶意进程</div>
-                          <div class="mindmap-node leaf">可疑文件</div>
-                        </div>
-                      </div>
-                      <div class="mindmap-node child">
-                        <div class="node-content">关联分析</div>
-                        <div class="children">
-                          <div class="mindmap-node leaf">时间序列</div>
-                          <div class="mindmap-node leaf">行为模式</div>
-                        </div>
-                      </div>
-                      <div class="mindmap-node child">
-                        <div class="node-content">结论输出</div>
-                        <div class="children">
-                          <div class="mindmap-node leaf">威胁评估</div>
-                          <div class="mindmap-node leaf">处理建议</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </el-tab-pane>
-        
-        <el-tab-pane label="战利品" name="loot">
-          <div class="loot-container">
-            <div 
-              v-for="(loot, index) in lootItems" 
-              :key="index" 
-              class="loot-item"
+        <el-tab-pane label="目标定义" name="goal">
+          <div class="analysis-section">
+            <div
+              v-for="(item, index) in goalDefinitions"
+              :key="index"
+              class="analysis-item"
             >
-              <div class="loot-icon">
-                <el-icon><component :is="loot.icon" /></el-icon>
-              </div>
-              <div class="loot-info">
-                <div class="loot-name">{{ loot.name }}</div>
-                <div class="loot-description">{{ loot.description }}</div>
-                <div class="loot-path">{{ loot.path }}</div>
-              </div>
-              <div class="loot-actions">
-                <el-button type="primary" size="small" plain @click="downloadLoot(index)">
-                  下载
-                </el-button>
-                <el-button type="info" size="small" plain @click="viewLoot(index)">
-                  查看
-                </el-button>
-              </div>
+              <div class="item-label">{{ item.label }}</div>
+              <div class="item-content">{{ item.content }}</div>
             </div>
           </div>
         </el-tab-pane>
-        
-        <el-tab-pane label="分析结果" name="result">
-          <div class="result-container">
-            <div class="result-summary">
+
+        <el-tab-pane label="过程记录" name="process">
+          <div class="analysis-section">
+            <el-timeline>
+              <el-timeline-item
+                v-for="(record, index) in processRecords"
+                :key="index"
+                :timestamp="record.time"
+                :type="record.type"
+              >
+                <div class="timeline-title">{{ record.title }}</div>
+                <div class="timeline-content">{{ record.content }}</div>
+              </el-timeline-item>
+            </el-timeline>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="分析结论" name="conclusion">
+          <div class="analysis-section">
+            <div class="conclusion-summary">
               <div class="summary-item">
-                <div class="summary-label">分析状态:</div>
+                <div class="summary-label">分析状态</div>
                 <div class="summary-value success">已完成</div>
               </div>
               <div class="summary-item">
-                <div class="summary-label">威胁等级:</div>
+                <div class="summary-label">风险等级</div>
                 <div class="summary-value high-risk">高危</div>
               </div>
               <div class="summary-item">
-                <div class="summary-label">分析时间:</div>
-                <div class="summary-value">2023-06-15 14:30:22</div>
-              </div>
-              <div class="summary-item">
-                <div class="summary-label">分析用时:</div>
-                <div class="summary-value">5分30秒</div>
+                <div class="summary-label">置信度</div>
+                <div class="summary-value">86%</div>
               </div>
             </div>
-            
-            <div class="result-details">
-              <el-collapse v-model="activeResultPanel">
-                <el-collapse-item title="详细分析报告" name="report">
-                  <div class="report-content">
-                    <p>分析报告内容...</p>
-                  </div>
-                </el-collapse-item>
-                <el-collapse-item title="检测到的威胁" name="threats">
-                  <div class="threats-content">
-                    <el-table :data="threats" style="width: 100%" border>
-                      <el-table-column prop="name" label="威胁名称" width="180" />
-                      <el-table-column prop="type" label="威胁类型" width="120" />
-                      <el-table-column prop="severity" label="严重等级" width="120">
-                        <template #default="scope">
-                          <el-tag :type="getThreatTagType(scope.row.severity)">
-                            {{ scope.row.severity }}
-                          </el-tag>
-                        </template>
-                      </el-table-column>
-                      <el-table-column prop="description" label="描述" />
-                    </el-table>
-                  </div>
-                </el-collapse-item>
-                <el-collapse-item title="建议措施" name="recommendations">
-                  <div class="recommendations-content">
-                    <ul>
-                      <li>立即隔离受感染的设备</li>
-                      <li>更新防火墙规则阻止相关IP地址</li>
-                      <li>对系统进行全面病毒扫描</li>
-                      <li>修改相关账户密码</li>
-                    </ul>
-                  </div>
-                </el-collapse-item>
-              </el-collapse>
+
+            <el-table :data="conclusions" stripe style="width: 100%">
+              <el-table-column prop="name" label="结论项" min-width="140" />
+              <el-table-column prop="evidence" label="关键依据" min-width="180" show-overflow-tooltip />
+              <el-table-column prop="result" label="判断结果" min-width="120" />
+            </el-table>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="建议策略" name="strategy">
+          <div class="analysis-section">
+            <div
+              v-for="(strategy, index) in suggestedStrategies"
+              :key="index"
+              class="strategy-item"
+            >
+              <div class="strategy-header">
+                <div class="strategy-title">{{ strategy.title }}</div>
+                <el-tag :type="strategy.priorityType">{{ strategy.priority }}</el-tag>
+              </div>
+              <div class="strategy-content">{{ strategy.content }}</div>
             </div>
           </div>
         </el-tab-pane>
@@ -147,111 +77,115 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { 
-  Document, Files, DataAnalysis, Connection, Warning
-} from '@element-plus/icons-vue'
-import * as monaco from 'monaco-editor'
+import { ref } from 'vue'
 
-// 当前激活的选项卡
-const activeTab = ref('analysisChain')
+type TimelineType = 'primary' | 'success' | 'warning' | 'danger' | 'info'
+type TagType = 'success' | 'warning' | 'danger' | 'info' | 'primary'
 
-// 思维导图数据是否已加载
-const mindmapDataLoaded = ref(false)
+interface GoalDefinition {
+  label: string
+  content: string
+}
 
-// 战利品数据
-const lootItems = ref([
+interface ProcessRecord {
+  time: string
+  title: string
+  content: string
+  type: TimelineType
+}
+
+interface Conclusion {
+  name: string
+  evidence: string
+  result: string
+}
+
+interface SuggestedStrategy {
+  title: string
+  content: string
+  priority: string
+  priorityType: TagType
+}
+
+const activeTab = ref('goal')
+
+const goalDefinitions = ref<GoalDefinition[]>([
   {
-    name: '内存转储文件',
-    description: '进程内存快照',
-    path: '/artifacts/memory_dump_20230615.bin',
-    icon: Document
+    label: '分析对象',
+    content: '围绕指定主机、账号与网络连接记录开展关联研判。'
   },
   {
-    name: '网络流量捕获',
-    description: '分析期间的网络通信记录',
-    path: '/artifacts/network_capture_20230615.pcap',
-    icon: DataAnalysis
+    label: '分析范围',
+    content: '覆盖进程行为、网络访问、文件操作、登录事件与威胁情报命中情况。'
   },
   {
-    name: '注册表导出',
-    description: '系统注册表快照',
-    path: '/artifacts/registry_export_20230615.reg',
-    icon: Files
-  },
-  {
-    name: '日志文件',
-    description: '系统和应用程序日志',
-    path: '/artifacts/system_logs_20230615.zip',
-    icon: Document
+    label: '判定目标',
+    content: '识别异常行为链路，确认风险等级，并输出可执行的处置建议。'
   }
 ])
 
-// 威胁数据
-const threats = ref([
+const processRecords = ref<ProcessRecord[]>([
   {
-    name: '可疑网络连接',
-    type: '网络威胁',
-    severity: '高危',
-    description: '检测到与已知恶意服务器的连接'
+    time: '2026-06-29 10:00:00',
+    title: '数据聚合',
+    content: '已汇总主机行为、流量日志和资产基线信息。',
+    type: 'primary'
   },
   {
-    name: '异常进程行为',
-    type: '主机威胁',
-    severity: '中危',
-    description: '发现异常进程创建行为'
+    time: '2026-06-29 10:08:00',
+    title: '特征匹配',
+    content: '发现可疑外联、异常进程链和高频访问特征。',
+    type: 'warning'
   },
   {
-    name: '可疑文件操作',
-    type: '文件威胁',
-    severity: '中危',
-    description: '检测到对系统关键文件的未授权访问'
+    time: '2026-06-29 10:16:00',
+    title: '证据校验',
+    content: '完成关键事件交叉验证，形成可追溯证据链。',
+    type: 'success'
   }
 ])
 
-// 分析结果面板
-const activeResultPanel = ref(['report', 'threats', 'recommendations'])
-
-// 获取威胁标签类型
-const getThreatTagType = (severity: string) => {
-  switch (severity) {
-    case '高危': return 'danger'
-    case '中危': return 'warning'
-    case '低危': return 'info'
-    default: return 'info'
+const conclusions = ref<Conclusion[]>([
+  {
+    name: '外联风险',
+    evidence: '目标主机多次访问异常地址并存在周期性连接行为。',
+    result: '疑似异常通信'
+  },
+  {
+    name: '进程行为',
+    evidence: '检测到非常规路径进程启动并派生子进程。',
+    result: '存在可疑链路'
+  },
+  {
+    name: '综合评级',
+    evidence: '网络、进程和情报命中结果存在一致性。',
+    result: '高危'
   }
-}
+])
 
-onMounted(() => {
-  // 初始化相关逻辑
-})
-
-onBeforeUnmount(() => {
-  // 清理逻辑
-})
-
-// 加载思维导图数据
-const loadMindmapData = () => {
-  mindmapDataLoaded.value = true
-}
-
-// 下载战利品
-const downloadLoot = (index: number) => {
-  const loot = lootItems.value[index]
-  console.log(`下载战利品: ${loot.name}`)
-  // 这里可以添加实际的下载逻辑
-}
-
-// 查看战利品
-const viewLoot = (index: number) => {
-  const loot = lootItems.value[index]
-  console.log(`查看战利品: ${loot.name}`)
-  // 这里可以添加实际的查看逻辑
-}
+const suggestedStrategies = ref<SuggestedStrategy[]>([
+  {
+    title: '隔离高风险主机',
+    content: '对命中异常行为链路的主机进行临时隔离，保留现场数据用于后续取证。',
+    priority: '高优先级',
+    priorityType: 'danger'
+  },
+  {
+    title: '阻断异常外联',
+    content: '将异常目的地址加入阻断策略，并持续观察同类连接是否复现。',
+    priority: '高优先级',
+    priorityType: 'danger'
+  },
+  {
+    title: '补充检测规则',
+    content: '基于本次行为特征补充进程链、访问频次与情报命中规则。',
+    priority: '中优先级',
+    priorityType: 'warning'
+  }
+])
 </script>
 
 <style scoped>
-/* 面板样式 */
 .panel {
   display: flex;
   flex-direction: column;
@@ -271,7 +205,6 @@ const viewLoot = (index: number) => {
   overflow-y: auto;
 }
 
-/* 选项卡样式 */
 .tab-container {
   flex: 1;
   overflow: hidden;
@@ -289,7 +222,7 @@ const viewLoot = (index: number) => {
 
 :deep(.el-tabs__nav) {
   background-color: #fff;
-  padding: 0px 30px;
+  padding: 0 30px;
   width: 100%;
 }
 
@@ -303,217 +236,58 @@ const viewLoot = (index: number) => {
   font-weight: bold;
 }
 
-/* 分析链样式 */
-.analysis-chain-container {
-  padding: 20px;
-  height: 100%;
-}
-
-.mindmap-container {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.mindmap-placeholder {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: #909399;
-}
-
-.mindmap-placeholder .el-icon {
-  font-size: 64px;
-  margin-bottom: 16px;
-}
-
-.mindmap-placeholder p {
-  margin: 8px 0;
-  font-size: 16px;
-}
-
-.mindmap-placeholder .description {
-  font-size: 14px;
-  color: #c0c4cc;
-  margin-bottom: 20px;
-}
-
-.mindmap-content {
-  flex: 1;
-  overflow: auto;
-}
-
-.mindmap-chart {
-  padding: 20px;
-  min-width: 800px;
-  min-height: 500px;
-}
-
-.mindmap-node {
-  display: inline-block;
-  text-align: center;
-  position: relative;
-}
-
-.mindmap-node.root {
-  margin: 0 auto;
-  display: block;
-}
-
-.mindmap-node.child {
-  margin: 20px 40px;
-  display: inline-block;
-  vertical-align: top;
-}
-
-.mindmap-node.leaf {
-  margin: 10px 20px;
-  display: block;
-}
-
-.node-content {
-  background-color: #409eff;
-  color: white;
-  padding: 10px 15px;
-  border-radius: 20px;
-  font-weight: bold;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  white-space: nowrap;
-}
-
-.mindmap-node.child .node-content {
-  background-color: #67c23a;
-}
-
-.mindmap-node.leaf .node-content {
-  background-color: #909399;
-  font-size: 12px;
-  padding: 6px 12px;
-}
-
-.children {
-  margin-top: 20px;
-}
-
-.mindmap-node.child .children {
-  margin-top: 15px;
-}
-
-.mindmap-node.leaf .children {
-  margin-top: 10px;
-}
-
-.mindmap-node:not(.root) .children::before {
-  content: '';
-  position: absolute;
-  top: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 2px;
-  height: 10px;
-  background-color: #dcdfe6;
-}
-
-/* 连接线 */
-.mindmap-node.child::before {
-  content: '';
-  position: absolute;
-  top: -20px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 2px;
-  height: 20px;
-  background-color: #dcdfe6;
-}
-
-.mindmap-node.child::after {
-  content: '';
-  position: absolute;
-  top: -20px;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background-color: #dcdfe6;
-}
-
-/* 战利品样式 */
-.loot-container {
+.analysis-section {
   padding: 12px;
 }
 
-.loot-item {
-  display: flex;
-  align-items: center;
-  padding: 16px;
-  margin-bottom: 12px;
-  background-color: #fff;
+.analysis-item,
+.strategy-item {
+  background: #fff;
   border-radius: 6px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  margin-bottom: 12px;
+  padding: 14px;
 }
 
-.loot-icon {
-  font-size: 28px;
-  margin-right: 16px;
-  color: #409eff;
-}
-
-.loot-info {
-  flex: 1;
-}
-
-.loot-name {
+.item-label,
+.strategy-title,
+.timeline-title {
+  color: #303133;
   font-weight: 600;
-  font-size: 16px;
-  margin-bottom: 4px;
-}
-
-.loot-description {
-  font-size: 14px;
-  color: #606266;
   margin-bottom: 6px;
 }
 
-.loot-path {
-  font-size: 12px;
-  color: #909399;
+.item-content,
+.strategy-content,
+.timeline-content {
+  color: #606266;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
-.loot-actions {
-  display: flex;
-  gap: 8px;
-}
-
-/* 分析结果样式 */
-.result-container {
-  padding: 20px;
-}
-
-.result-summary {
+.conclusion-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .summary-item {
-  display: flex;
-  padding: 12px 16px;
-  background-color: #fff;
+  background: #fff;
   border-radius: 6px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  padding: 12px;
 }
 
 .summary-label {
-  font-weight: 600;
-  margin-right: 12px;
-  white-space: nowrap;
+  color: #909399;
+  font-size: 12px;
+  margin-bottom: 6px;
 }
 
 .summary-value {
-  flex: 1;
+  color: #303133;
+  font-weight: 600;
 }
 
 .summary-value.success {
@@ -524,32 +298,11 @@ const viewLoot = (index: number) => {
   color: #f56c6c;
 }
 
-.result-details {
-  background-color: #fff;
-  border-radius: 6px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-}
-
-:deep(.el-collapse-item__header) {
-  padding-left: 20px;
-  font-size: 16px;
-  font-weight: 500;
-}
-
-:deep(.el-collapse-item__wrap) {
-  padding: 20px;
-}
-
-.threats-content {
-  padding: 10px 0;
-}
-
-.recommendations-content ul {
-  padding-left: 20px;
-}
-
-.recommendations-content li {
+.strategy-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 8px;
 }
 </style>

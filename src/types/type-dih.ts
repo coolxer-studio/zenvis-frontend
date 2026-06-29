@@ -56,6 +56,7 @@ export type ChatSession = {
   title: string;
   type: string;
   messageList: ChatMessage[];
+  extraData?: string;
   deepThink: boolean;
   onlineSearch: boolean;
   updateTime: string;
@@ -115,6 +116,7 @@ export type ChatSessionPageParams = {
 // 更新聊天会话参数
 export type UpdateChatSessionParams = {
   title?: string;
+  extra_data?: string;
   pin?: boolean;
   deep_think?: boolean;
   online_search?: boolean;
