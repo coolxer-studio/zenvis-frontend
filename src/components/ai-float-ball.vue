@@ -4,30 +4,36 @@
       <div
         v-show="isVisible"
         class="ai-float-ball"
-        @mousedown="onDragStart"
+        :class="{ 'is-dragging': isDragging }"
+        @pointerdown="onDragStart"
+        @pointermove="onDragMove"
+        @pointerup="onDragEnd"
+        @pointercancel="onDragEnd"
         @click="onBallClick"
       >
-        <img :src="copilotImg" alt="copilot" class="ai-float-ball-img" />
+        <img
+          :src="copilotImg"
+          alt="copilot"
+          class="ai-float-ball-img"
+          draggable="false"
+          @dragstart.prevent
+        />
       </div>
     </transition>
 
     <transition name="slide-up">
       <div v-if="isExpanded" class="ai-chat-window-container">
         <div class="chat-header">
-          <button class="action-btn" @click="shareWindow">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="18" cy="5" r="3"></circle>
-              <circle cx="6" cy="12" r="3"></circle>
-              <circle cx="18" cy="19" r="3"></circle>
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-            </svg>
+          <button
+            class="action-btn"
+            aria-label="在新页面打开对话"
+            title="在新页面打开对话"
+            @click="openChatPage"
+          >
+            <el-icon><TopRight /></el-icon>
           </button>
-          <button class="action-btn" @click="closeWindow">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
+          <button class="action-btn" aria-label="关闭" title="关闭" @click="closeWindow">
+            <el-icon><Close /></el-icon>
           </button>
         </div>
         <view-center :suggestions="[]" :chat-session-id="chatSessionId" chat-session-type="ask" />
@@ -50,9 +56,20 @@ const chatSessionId = ref('');
 // 拖拽相关状态
 const isDragging = ref(false);
 const justDragged = ref(false);
-const dragOffset = ref({ x: 0, y: 0 });
 const ballPosition = ref({ right: 30, bottom: 30 });
 let dragEndTimeout: ReturnType<typeof setTimeout>;
+
+type DragState = {
+  pointerId: number;
+  offsetX: number;
+  offsetY: number;
+  width: number;
+  height: number;
+  startX: number;
+  startY: number;
+};
+
+const dragState = ref<DragState | null>(null);
 
 const wrapperStyle = computed(() => ({
   right: `${ballPosition.value.right}px`,
@@ -79,44 +96,78 @@ const closeWindow = () => {
   isExpanded.value = false;
 };
 
-const shareWindow = () => {
-  if (chatSessionId.value) {
-    const baseUrl = window.location.origin + window.location.pathname;
-    const shareUrl = `${baseUrl}#/service/dih?type=ask&chatSessionId=${chatSessionId.value}`;
-    window.open(shareUrl, '_blank', 'noopener,noreferrer');
+const openChatPage = () => {
+  if (!chatSessionId.value) {
+    chatSessionId.value = generateUUID();
   }
+
+  const baseUrl = window.location.origin + window.location.pathname;
+  const chatPageUrl = `${baseUrl}#/service/dih?type=ask&chatSessionId=${chatSessionId.value}`;
+  window.open(chatPageUrl, '_blank', 'noopener,noreferrer');
+};
+
+const clamp = (value: number, min: number, max: number) => {
+  return Math.min(Math.max(value, min), max);
 };
 
 // 拖拽开始
-const onDragStart = (e: MouseEvent) => {
+const onDragStart = (e: PointerEvent) => {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  e.preventDefault();
+  const target = e.currentTarget as HTMLElement;
+  const rect = target.getBoundingClientRect();
   isDragging.value = true;
-  dragOffset.value = { x: e.clientX, y: e.clientY };
-  document.addEventListener('mousemove', onDragMove);
-  document.addEventListener('mouseup', onDragEnd);
+  justDragged.value = false;
+  dragState.value = {
+    pointerId: e.pointerId,
+    offsetX: e.clientX - rect.left,
+    offsetY: e.clientY - rect.top,
+    width: rect.width,
+    height: rect.height,
+    startX: e.clientX,
+    startY: e.clientY,
+  };
+  target.setPointerCapture(e.pointerId);
 };
 
 // 拖拽移动
-const onDragMove = (e: MouseEvent) => {
-  if (!isDragging.value) return;
-  justDragged.value = true;
-  const deltaX = dragOffset.value.x - e.clientX;
-  const deltaY = dragOffset.value.y - e.clientY;
-  dragOffset.value = { x: e.clientX, y: e.clientY };
+const onDragMove = (e: PointerEvent) => {
+  const state = dragState.value;
+  if (!isDragging.value || !state || e.pointerId !== state.pointerId) return;
+  e.preventDefault();
+
+  const movedX = e.clientX - state.startX;
+  const movedY = e.clientY - state.startY;
+  if (movedX * movedX + movedY * movedY > 9) {
+    justDragged.value = true;
+  }
+
+  const maxLeft = Math.max(0, window.innerWidth - state.width);
+  const maxTop = Math.max(0, window.innerHeight - state.height);
+  const left = clamp(e.clientX - state.offsetX, 0, maxLeft);
+  const top = clamp(e.clientY - state.offsetY, 0, maxTop);
   ballPosition.value = {
-    right: ballPosition.value.right + deltaX,
-    bottom: ballPosition.value.bottom + deltaY,
+    right: window.innerWidth - left - state.width,
+    bottom: window.innerHeight - top - state.height,
   };
 };
 
 // 拖拽结束
-const onDragEnd = () => {
+const onDragEnd = (e?: PointerEvent) => {
+  const state = dragState.value;
+  if (state && e && e.pointerId !== state.pointerId) return;
+  if (state && e?.pointerId === state.pointerId) {
+    const target = e.currentTarget as HTMLElement;
+    if (target.hasPointerCapture(state.pointerId)) {
+      target.releasePointerCapture(state.pointerId);
+    }
+  }
   isDragging.value = false;
+  dragState.value = null;
   clearTimeout(dragEndTimeout);
   dragEndTimeout = setTimeout(() => {
     justDragged.value = false;
   }, 300);
-  document.removeEventListener('mousemove', onDragMove);
-  document.removeEventListener('mouseup', onDragEnd);
 };
 
 // 点击事件（仅在非拖拽时触发）
@@ -146,8 +197,6 @@ onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll);
   clearTimeout(scrollTimeout);
   clearTimeout(dragEndTimeout);
-  document.removeEventListener('mousemove', onDragMove);
-  document.removeEventListener('mouseup', onDragEnd);
 });
 </script>
 
@@ -163,21 +212,36 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #3988ff;
   border-radius: 50%;
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 8px 25px rgba(57, 136, 255, 0.35);
   cursor: pointer;
-  transition: all 0.3s ease;
+  touch-action: none;
+  user-select: none;
+  transition: opacity 0.3s ease, box-shadow 0.2s ease, background 0.2s ease;
   opacity: 0.8;
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 12px 35px rgba(102, 126, 234, 0.5);
+    background: #2d7df0;
+    box-shadow: 0 12px 35px rgba(57, 136, 255, 0.45);
+  }
+
+  &.is-dragging {
+    cursor: grabbing;
+    transition: none;
+
+    &:hover {
+      transform: none;
+    }
   }
 
   .ai-float-ball-img {
     width: 56px;
     height: 56px;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
   }
 }
 
@@ -234,14 +298,15 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 12px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 40px;
+  padding: 5px 10px;
+  background: #3988ff;
   color: #fff;
 }
 
 .action-btn {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -256,9 +321,8 @@ onUnmounted(() => {
     background: rgba(255, 255, 255, 0.1);
   }
 
-  svg {
-    width: 16px;
-    height: 16px;
+  .el-icon {
+    font-size: 15px;
   }
 }
 

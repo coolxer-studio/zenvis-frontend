@@ -1,11 +1,11 @@
 <template>
   <el-menu mode="horizontal" class="login-header-nav" v-model:active-index="current">
     <template v-for="(item, index) in menuList">
-      <el-menu-item v-if="!item.children" :index="item.code" class="menu-item-with-superscript">
-        <router-link :to="{name: item.route, params: { menuParams: item.params }}" style="position: relative; display: inline-block;">
+      <el-menu-item v-if="!item.children" :index="item.code" class="menu-item-with-superscript" @click="goMenu(item)">
+        <span class="nav-menu-link">
           {{item.name}}
           <sup v-if="item.superscript" class="menu-superscript">{{ item.superscript }}</sup>
-        </router-link>
+        </span>
         <div class="nav_triangle"></div>
       </el-menu-item>
       <el-sub-menu v-else :index="item.code" class="menu-item-with-superscript" popper-class="nav-submenu-popper">
@@ -16,8 +16,8 @@
             <div class="nav_triangle"></div>
           </span>
         </template>
-        <el-menu-item v-for="child in item.children" :index="child.code">
-          <router-link :to="{name: child.route, params: { menuParams: child.params }}">{{child.name}}</router-link>
+        <el-menu-item v-for="child in item.children" :index="child.code" @click="goMenu(child)">
+          <span>{{child.name}}</span>
         </el-menu-item>
       </el-sub-menu>
     </template>
@@ -38,11 +38,13 @@
             <div style="color: #7c8087;">{{userInfo.email}}</div>
           </div>
         </el-dropdown-item>
-        <el-dropdown-item>
-          <a @click="updatePassword"><el-icon><Dish /></el-icon>修改密码</a>
+        <el-dropdown-item @click="updatePassword">
+          <el-icon><Dish /></el-icon>
+          <span>修改密码</span>
         </el-dropdown-item>
-        <el-dropdown-item>
-          <a @click="logOut"><el-icon><SwitchButton /></el-icon> 退出</a>
+        <el-dropdown-item @click="logOut">
+          <el-icon><SwitchButton /></el-icon>
+          <span>退出</span>
         </el-dropdown-item>
       </el-dropdown-menu>
     </template>
@@ -63,6 +65,13 @@
   let showPassword = ref<boolean>(false)
   const userInfo = getUserInfo<{ name?: string; email?: string }>() || {}
   const current = ref<string>(router.currentRoute.value.name as string);
+  const goMenu = (item: any) => {
+    if (!item?.route) return;
+    router.push({
+      name: item.route,
+      params: { menuParams: item.params },
+    });
+  }
   const logOut = () => {
     ElMessageBox.confirm('请确认是否退出登录？', '提示', {
       confirmButtonText: '确认',
@@ -160,17 +169,12 @@
                 0 0 200px #ff3100;
                 
   }
+  .nav-menu-link {
+    position: relative;
+    display: inline-block;
+  }
   @keyframes blink {
             0%, 100% { opacity: 1; }
             50% { opacity: 0; }
         }
-</style>
-<!-- 二级菜单弹层被 teleport 到 body，需用非 scoped 样式去除默认的 A 链接样式 -->
-<style lang="less">
-  .nav-submenu-popper {
-    .el-menu-item a {
-      color: inherit;
-      text-decoration: none;
-    }
-  }
 </style>
