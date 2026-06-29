@@ -42,7 +42,7 @@ interface ConfigSection {
   items: ConfigItem[]
 }
 
-const activeTab = ref('dataPushServices')
+const activeTab = ref('metadataConfigs')
 
 const dataPushServices: ConfigItem[] = [
   {
@@ -117,8 +117,8 @@ const menuConfigs: ConfigItem[] = [
 ]
 
 const configSections: ConfigSection[] = [
-  { name: 'dataPushServices', label: '数据推送服务', items: dataPushServices },
   { name: 'metadataConfigs', label: '元数据配置', items: metadataConfigs },
+  { name: 'dataPushServices', label: '数据推送服务', items: dataPushServices },
   { name: 'visualizationConfigs', label: '可视化配置', items: visualizationConfigs },
   { name: 'menuConfigs', label: '菜单配置', items: menuConfigs }
 ]
