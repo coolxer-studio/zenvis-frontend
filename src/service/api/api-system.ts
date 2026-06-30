@@ -39,8 +39,8 @@ export class SystemService {
     return  request<Object>(`${prefix}/about/banner/upload`, formData, 'POST');
   }
 
-  static async updateSystemInfo(params: SystemInfo): Promise<SystemInfo> {
-    const res = await request<SystemInfo>(`${prefix}/about/info/update`, {
+  static async updateSystemInfo(params: SystemInfo): Promise<void> {
+    await request<void>(`${prefix}/about/info/update`, {
       system_title: params.systemTitle,
       product_name: params.productName,
       product_version: params.productVersion,
@@ -51,20 +51,6 @@ export class SystemService {
       technical_email: params.technicalEmail,
       integrate_link: params.integrateLink,
     }, 'PUT');
-    return {
-      systemTitle: (res as any).system_title || '',
-      systemIcon: (res as any).system_icon || '',
-      systemLogo: (res as any).system_logo || '',
-      systemBanner: (res as any).system_banner || '',
-      productName: (res as any).product_name || '',
-      productVersion: (res as any).product_version || '',
-      productIntroduction: (res as any).product_introduction || '',
-      servicePhone: (res as any).service_phone || '',
-      serviceEmail: (res as any).service_email || '',
-      technicalEmail: (res as any).technical_email || '',
-      integrateLink: (res as any).integrate_link || '',
-      copyright: (res as any).copyright || '',
-    };
   }
 
   static async getDashboardList() : Promise<Dashboard[]>{

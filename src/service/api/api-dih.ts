@@ -5,6 +5,10 @@ import {
   UploadFileResponse,
   SuggestParams,
   ChatParams,
+  ChatMessage,
+  ChatMessagePart,
+  ChatStreamEvent,
+  ChatActionDecisionParams,
   ChatSessionPageParams,
   UpdateChatSessionParams,
   UpdateChatSessionResponse,
@@ -17,6 +21,57 @@ const prefix = '/api/v1/dih';
 
 const prefixChatSession = '/api/v1/dih/chat-session';
 
+const normalizeAttachment = (item: any) => ({
+  file_id: item?.file_id || item?.fileId || '',
+  file_name: item?.file_name || item?.fileName || '',
+  file_size: item?.file_size ?? item?.fileSize ?? 0,
+  content_type: item?.content_type || item?.contentType || '',
+  kind: item?.kind || '',
+  file_url: item?.file_url || item?.fileUrl || '',
+  parse_status: item?.parse_status || item?.parseStatus || '',
+  message: item?.message || '',
+});
+
+const normalizeMessagePart = (item: any): ChatMessagePart => ({
+  id: item?.id || '',
+  type: item?.type || 'markdown',
+  content: item?.content || '',
+  language: item?.language || '',
+  title: item?.title || '',
+  level: item?.level || '',
+  status: item?.status || '',
+  metadata: item?.metadata || {},
+});
+
+const normalizeMessage = (item: any): ChatMessage => ({
+  id: item?.id || '',
+  sender: item?.sender || 'ai',
+  content: item?.content || '',
+  time: item?.time || '',
+  type: item?.type || 'text',
+  parts: Array.isArray(item?.parts) ? item.parts.map(normalizeMessagePart) : undefined,
+  attachments: Array.isArray(item?.attachments) ? item.attachments.map(normalizeAttachment) : undefined,
+  loading: item?.loading || false,
+  isError: item?.is_error ?? item?.isError,
+  effective: item?.effective,
+  iframe: item?.iframe,
+});
+
+const normalizeStreamEvent = (event: any): ChatStreamEvent => {
+  if (event?.event === 'done' && event?.message && typeof event.message === 'object') {
+    return {
+      event: event.event,
+      content: event.content,
+      message: normalizeMessage(event.message),
+    };
+  }
+  return {
+    event: event?.event || 'error',
+    content: event?.content,
+    message: event?.message,
+  };
+};
+
 export class DihService {
   /**
    * 上传文件接口
@@ -26,7 +81,8 @@ export class DihService {
   static async uploadFile(file: File): Promise<UploadFileResponse> {
     const formData = new FormData();
     formData.append('file', file);
-    return request<UploadFileResponse>(`${prefix}/upload`, formData, 'POST');
+    const response = await request<UploadFileResponse>(`${prefix}/upload`, formData, 'POST');
+    return normalizeAttachment(response) as UploadFileResponse;
   }
 
   /**
@@ -64,6 +120,63 @@ export class DihService {
     }
   }
 
+  static async chatEvents(
+    params: ChatParams,
+    onEvent: (event: ChatStreamEvent) => void | Promise<void>,
+  ): Promise<boolean> {
+    try {
+      const response = await fetch(withBaseUrl(`${prefix}/chat`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json;charset=UTF-8',
+        },
+        body: JSON.stringify({
+          ...params,
+          response_format: 'events',
+        }),
+      });
+
+      if (!response.ok || !response.body) {
+        return false;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (value) {
+          buffer += decoder.decode(value, { stream: !done });
+          const lines = buffer.split(/\r?\n/);
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) continue;
+            await onEvent(normalizeStreamEvent(JSON.parse(trimmedLine)));
+          }
+        }
+        if (done) {
+          break;
+        }
+      }
+
+      const lastLine = buffer.trim();
+      if (lastLine) {
+        await onEvent(normalizeStreamEvent(JSON.parse(lastLine)));
+      }
+
+      return true;
+    } catch (error) {
+      console.error('聊天事件流调用失败:', error);
+      return false;
+    }
+  }
+
+  static async recordActionDecision(params: ChatActionDecisionParams): Promise<string> {
+    return request<string>(`${prefix}/chat/action-decision`, params, 'POST');
+  }
+
   static async getModelList(): Promise<ModelInfo[]> {
     const response = await request<Array<object>>(`${prefix}/model/list`, '', 'GET');
     // 返回ModelInfo[]对象
@@ -81,7 +194,8 @@ export class DihService {
       sessionId: (item as any).session_id || '',
       title: (item as any).title || '',
       type: (item as any).type || '',
-      messageList: (item as any).message_list || [],
+      messageList: ((item as any).message_list || []).map(normalizeMessage),
+      extraData: (item as any).extra_data || '',
       deepThink: (item as any).deep_think || false,
       onlineSearch: (item as any).online_search || false,
       updateTime: (item as any).update_time || '',
@@ -97,7 +211,8 @@ export class DihService {
       sessionId: (item as any).session_id || '',
       title: (item as any).title || '',
       type: (item as any).type || '',
-      messageList: (item as any).message_list || [],
+      messageList: ((item as any).message_list || []).map(normalizeMessage),
+      extraData: (item as any).extra_data || '',
       deepThink: (item as any).deep_think || false,
       onlineSearch: (item as any).online_search || false,
       updateTime: (item as any).update_time || '',
@@ -120,7 +235,8 @@ export class DihService {
       sessionId: (response as any).session_id || '',
       title: (response as any).title || '',
       type: (response as any).type || '',
-      messageList: (response as any).message_list || [],
+      messageList: ((response as any).message_list || []).map(normalizeMessage),
+      extraData: (response as any).extra_data || '',
       deepThink: (response as any).deep_think || false,
       onlineSearch: (response as any).online_search || false,
       updateTime: (response as any).update_time || '',
