@@ -273,7 +273,7 @@ const saveField = async (field: EditableFieldKey) => {
   (updateData as any)[field] = editValue.value;
 
   try {
-    const result = await SystemService.updateSystemInfo(updateData as SystemInfo);
+    await SystemService.updateSystemInfo(updateData as SystemInfo);
     ElMessage.success('保存成功');
     await getSystemInfoFun();
   } catch (error) {
