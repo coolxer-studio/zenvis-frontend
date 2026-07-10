@@ -16,7 +16,7 @@
           <ViewCenter :suggestions="mySuggestions" />
         </el-splitter-panel>
         <el-splitter-panel v-if="showRightPanel" collapsible :size="30" min="20">
-          <ViewRightInspect v-if="route.query.type && route.query.type === 'agent_inspect'" />
+          <ViewRightDataVisualization v-if="route.query.type && route.query.type === 'agent_data_visualization'" />
           <ViewRightAnalysis v-if="route.query.type && route.query.type === 'agent_analysis'" />
           <ViewRightDispose v-if="route.query.type && route.query.type === 'agent_dispose'" />
           <ViewRightDataAccess v-if="route.query.type && route.query.type === 'agent_data_access'" />
@@ -35,22 +35,22 @@
 <script setup lang="ts">
 import ViewLeft from './components/view-left.vue'
 import ViewCenter from './components/view-center.vue'
-import ViewRightInspect from './components/view-right-inspect.vue'
+import ViewRightDataVisualization from './components/view-right-data-visualization.vue'
 import ViewRightAnalysis from './components/view-right-analysis.vue'
 import ViewRightDispose from './components/view-right-dispose.vue'
 import ViewRightDataAccess from './components/view-right-data-access.vue'
 import ViewRightReport from './components/view-right-report.vue'
 
 import ViewDrawer from './components/view-drawer.vue'
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import {
-  ArrowDown, ArrowUp, Connection, DataAnalysis, Document, Monitor, Operation, Tools
+  ArrowDown, ArrowUp, Connection, DataAnalysis, Document, Monitor, Operation
 } from '@element-plus/icons-vue'
+import { DihService } from '@/service/api'
+import type { AgentSkillVo } from '@/types/type-dih'
 
 const route = useRoute()
-const rightPanelTypes = ['agent_inspect', 'agent_analysis', 'agent_dispose', 'agent_data_access', 'agent_report']
-const showRightPanel = computed(() => rightPanelTypes.includes(String(route.query.type || '')))
 
 // 抽屉显示状态
 const drawerVisible = ref(false)
@@ -66,15 +66,38 @@ interface Suggestion {
   label: string
   icon: any
 }
-// 建议数据
-const mySuggestions = ref<Suggestion[]>([
-  { type: 'agent_data_access', label: '数据接入', icon: Connection },
-  { type: 'agent_inspect', label: '智能巡检', icon: Monitor },
-  { type: 'agent_analysis', label: '研判分析', icon: DataAnalysis },
-  { type: 'agent_dispose', label: '策略控制', icon: Operation },
-  { type: 'agent_report', label: '报表制作', icon: Document },
-  { type: 'agent_mcp', label: 'MCP 工具', icon: Tools },
-])
+
+const agentIconMap: Record<string, any> = {
+  agent_data_access: Connection,
+  agent_data_visualization: Monitor,
+  agent_analysis: DataAnalysis,
+  agent_dispose: Operation,
+  agent_report: Document,
+}
+
+const mySuggestions = ref<Suggestion[]>([])
+const rightPanelTypes = computed(() => mySuggestions.value.map(item => item.type))
+const showRightPanel = computed(() => rightPanelTypes.value.includes(String(route.query.type || '')))
+
+const toSuggestion = (agentSkill: AgentSkillVo): Suggestion => ({
+  type: agentSkill.agentType,
+  label: agentSkill.label || agentSkill.name || agentSkill.agentType,
+  icon: agentIconMap[agentSkill.agentType] || Monitor,
+})
+
+const loadAgentSkills = async () => {
+  try {
+    const agentSkills = await DihService.getAgentSkills(true)
+    mySuggestions.value = agentSkills.map(toSuggestion)
+  } catch (error) {
+    console.error('获取内置智能体 Skill 列表失败:', error)
+    mySuggestions.value = []
+  }
+}
+
+onMounted(() => {
+  loadAgentSkills()
+})
 
 </script>
 

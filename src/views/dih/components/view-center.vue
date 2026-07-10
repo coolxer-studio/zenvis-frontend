@@ -29,6 +29,11 @@
                 :message="message"
                 @copy-code="copyMessage"
                 @decide-action="handleActionDecision(message, $event)"
+                @submit-info-steps="handleInfoStepsSubmit(message, $event)"
+                @add-chart-library="handleAddChartLibrary(message, $event)"
+                @choose-analysis-decision="handleAnalysisDecision(message, $event)"
+                @choose-data-access-decision="handleDataAccessDecision(message, $event)"
+                @select-prompt-suggestion="fillPromptSuggestion"
               />
               <div class="message-time">{{ message.time }}</div>
               <!-- 新增：AI消息的交互按钮 -->
@@ -114,20 +119,22 @@
         </div>
 
         <div class="input-actions">
-          <el-dropdown size="small" @command="handleModelCommand">
-            <span class="chart-filter">
-              {{ modelSelectData.period }} <el-icon>
-                <ArrowDown />
-              </el-icon>
-            </span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item v-for="(item, index) in modelSelectData.periodOptions" :key="index" :command="item">
-                  {{ item }}
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+          <el-select
+            v-model="modelSelectData.period"
+            class="model-select"
+            popper-class="dih-model-select-popper"
+            size="small"
+            filterable
+            placeholder="选择模型"
+            no-match-text="未找到模型"
+          >
+            <el-option
+              v-for="item in modelSelectData.periodOptions"
+              :key="item"
+              :label="item"
+              :value="item"
+            />
+          </el-select>
           
           <!-- 新增深度思考按钮 -->
           <el-tooltip content="深度思考" placement="top">
@@ -148,7 +155,13 @@
             </el-button>
           </el-tooltip>
 
-          <el-tooltip content="发送" placement="top">
+          <el-tooltip v-if="isStreamingResponse" content="停止生成" placement="top">
+            <el-button class="action-btn stop-btn" aria-label="停止生成" @click="stopCurrentChat">
+              <span class="stop-icon-square" aria-hidden="true"></span>
+            </el-button>
+          </el-tooltip>
+
+          <el-tooltip v-else content="发送" placement="top">
             <el-button class="action-btn send-btn" :disabled="!canSendMessage" @click="sendMessage">
               <el-icon>
                 <Position />
@@ -174,18 +187,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive, watch, onMounted, nextTick } from 'vue'
+import { computed, ref, reactive, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import {
-  ArrowDown, Close, Loading, Monitor, Paperclip, Position, Opportunity
+  Close, Loading, Monitor, Paperclip, Position, Opportunity
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { DihService } from '@/service/api'
 import { useRouter } from 'vue-router'
 import { generateUUID } from '@/utils/util-common'
 import {getCurrentFormattedDate} from '@/utils/util-time'
+import { copyTextToClipboard } from '@/utils/clipboard';
 import { withBaseUrl } from '@/utils/url';
 import ChatMessageRenderer from './chat-message-renderer.vue';
-import type { ChatAttachment, ChatMessage, ChatMessagePart } from '@/types/type-dih';
+import type { ChatAttachment, ChatMessage, ChatMessagePart, ChatSession } from '@/types/type-dih';
 
 const router = useRouter();
 
@@ -230,6 +244,35 @@ interface Props {
   chatSessionType?: string
 }
 
+type SendMessageOptions = {
+  content?: string;
+  requestContent?: string;
+};
+
+type DataAccessRecord = Record<string, unknown> & {
+  id?: string;
+  name?: string;
+  status?: string;
+};
+
+type InfoStepAnswer = {
+  id: string;
+  title: string;
+  value: string;
+  source: 'suggestion' | 'custom';
+};
+
+const DATA_ACCESS_RECORD_EVENT = 'dihDataAccessRecordsUpdated';
+const DATA_VISUALIZATION_RECORD_EVENT = 'dihDataVisualizationRecordsUpdated';
+const DATA_REPORT_RECORD_EVENT = 'dihReportRecordsUpdated';
+const DATA_REPORT_RECORD_REQUEST_EVENT = 'dihReportRecordsRequested';
+const REPORT_QUICK_ACTION_EVENT = 'dihReportQuickActionRequested';
+const REPORT_EXTRA_DATA_CHANGED_EVENT = 'dihReportExtraDataChanged';
+const REPORT_SELECTION_REWRITE_COMPLETED_EVENT = 'dihReportSelectionRewriteCompleted';
+const MAX_UPLOAD_BYTES = 30 * 1024 * 1024;
+const MAX_FILES_PER_PICK = 10;
+const UPLOAD_CONCURRENCY = 3;
+
 const props = defineProps<Props>()
 
 // 添加深度思考状态
@@ -245,9 +288,31 @@ interface SelectData {
 const inputMessage = ref('')
 const pendingAttachments = ref<ChatAttachment[]>([])
 const isUploadingAttachment = ref(false)
+const isStreamingResponse = ref(false)
+const currentChatAbortController = ref<AbortController | null>(null)
+const currentStreamingMessageIndex = ref<number | null>(null)
+const isUserStoppingChat = ref(false)
 const canSendMessage = computed(() => {
-  return !isUploadingAttachment.value && (inputMessage.value.trim().length > 0 || pendingAttachments.value.length > 0)
+  return !isUploadingAttachment.value
+    && !isStreamingResponse.value
+    && (inputMessage.value.trim().length > 0 || pendingAttachments.value.length > 0)
 })
+
+const AUTO_CONFIRM_ACTIONS = new Set([
+  'analysis.start',
+  'analysis.create_continuous_task',
+  'policy.apply_to_production',
+  'data_access.generate_demo_push_config',
+  'data_access.create_demo_push_task',
+  'data_visualization.add_chart_library',
+  'data_visualization.apply_config',
+])
+
+const AUTO_REJECT_ACTIONS = new Set([
+  'data_access.generate_demo_push_config',
+  'data_access.create_demo_push_task',
+  'data_visualization.apply_config',
+])
 
 // 添加一个变量来跟踪Enter按键次数
 const enterPressCount = ref(0)
@@ -309,10 +374,165 @@ const messages = ref<ChatMessage[]>([
     time: getCurrentFormattedDate()
   }
 ])
+const chatSessionExtraData = ref('');
+
+const asObject = (value: unknown): Record<string, unknown> => {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+};
+
+const asRecordList = (value: unknown): DataAccessRecord[] => {
+  return Array.isArray(value)
+    ? value.filter(item => item && typeof item === 'object').map(item => item as DataAccessRecord)
+    : [];
+};
+
+const upsertById = (items: DataAccessRecord[], record: DataAccessRecord) => {
+  const id = String(record.id || record.fileName || record.taskId || record.name || '');
+  if (!id) {
+    return [...items, record];
+  }
+  const next = items.filter(item => String(item.id || item.fileName || item.taskId || item.name || '') !== id);
+  next.push(record);
+  return next;
+};
+
+const upsertInto = (items: DataAccessRecord[], record: DataAccessRecord) => {
+  items.splice(0, items.length, ...upsertById(items, record));
+};
+
+const parseSessionExtraData = () => {
+  if (!chatSessionExtraData.value.trim()) {
+    return {};
+  }
+  try {
+    return asObject(JSON.parse(chatSessionExtraData.value));
+  } catch {
+    return {};
+  }
+};
+
+const textValue = (value: unknown, fallback = '') => {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+  return String(value);
+};
+
+const buildChartLibraryRecord = (part: ChatMessagePart): DataAccessRecord => {
+  const metadata = asObject(part.metadata);
+  const name = textValue(metadata.title || part.title, '临时可视化图表');
+  const entity = textValue(metadata.entity, '');
+  const chartType = textValue(metadata.chartType, '');
+  return {
+    id: textValue(metadata.id, `chart:${entity || 'unknown'}:${name}`),
+    title: '图表库记录已创建',
+    name,
+    description: textValue(metadata.content || part.content || metadata.description, ''),
+    entity,
+    chartType,
+    api: textValue(metadata.api, ''),
+    status: 'temporary',
+    source: 'session',
+    config: metadata.amisConfig || metadata.config || {},
+  };
+};
+
+const ensureChatSessionRecordId = async () => {
+  if (chatSessionRecordId.value) {
+    return chatSessionRecordId.value;
+  }
+  if (!chatSessionId.value) {
+    return '';
+  }
+  const data = await DihService.getChatSession(chatSessionId.value, { type: chatSessionType.value });
+  chatSessionRecordId.value = data.id || '';
+  if (data.extraData && !chatSessionExtraData.value) {
+    chatSessionExtraData.value = data.extraData;
+  }
+  return chatSessionRecordId.value;
+};
+
+const addChartRecordToExtraData = (record: DataAccessRecord) => {
+  const extraData = asObject(parseSessionExtraData());
+  const dataVisualization = asObject(extraData.dataVisualization);
+  extraData.dataVisualization = {
+    ...dataVisualization,
+    chartLibrary: upsertById(asRecordList(dataVisualization.chartLibrary), record),
+  };
+  return JSON.stringify(extraData);
+};
+
+const extractDataAccessRecords = () => {
+  const metadataConfigs: DataAccessRecord[] = [];
+  const dataPushServices: DataAccessRecord[] = [];
+  const dataAccess = asObject(parseSessionExtraData().dataAccess);
+  asRecordList(dataAccess.metadataConfigs).forEach(record => {
+    upsertInto(metadataConfigs, record);
+  });
+  asRecordList(dataAccess.dataPushServices).forEach(record => {
+    upsertInto(dataPushServices, record);
+  });
+  return {
+    metadataConfigs,
+    dataPushServices,
+  };
+};
+
+const extractDataVisualizationRecords = () => {
+  const dataVisualization = asObject(parseSessionExtraData().dataVisualization);
+  return {
+    chartLibrary: asRecordList(dataVisualization.chartLibrary),
+    visualizationConfigs: asRecordList(dataVisualization.visualizationConfigs),
+    dashboardConfigs: asRecordList(dataVisualization.dashboardConfigs),
+    menuConfigs: asRecordList(dataVisualization.menuConfigs),
+  };
+};
+
+const extractReportRecords = () => {
+  const report = asObject(parseSessionExtraData().report);
+  return {
+    currentDocument: asObject(report.currentDocument),
+    documents: asRecordList(report.documents),
+    artifacts: asRecordList(report.artifacts),
+    extraData: chatSessionExtraData.value,
+    sessionRecordId: chatSessionRecordId.value,
+    sessionId: chatSessionId.value,
+  };
+};
+
+const publishDataAccessRecords = () => {
+  window.dispatchEvent(new CustomEvent(DATA_ACCESS_RECORD_EVENT, {
+    detail: extractDataAccessRecords(),
+  }));
+};
+
+const publishDataVisualizationRecords = () => {
+  window.dispatchEvent(new CustomEvent(DATA_VISUALIZATION_RECORD_EVENT, {
+    detail: extractDataVisualizationRecords(),
+  }));
+};
+
+const publishReportRecords = () => {
+  window.dispatchEvent(new CustomEvent(DATA_REPORT_RECORD_EVENT, {
+    detail: extractReportRecords(),
+  }));
+};
+
+watch(chatSessionExtraData, () => {
+  publishDataAccessRecords();
+  publishDataVisualizationRecords();
+  publishReportRecords();
+});
 
 const showSuggestionBtn = ref(true);
 const chatSessionTitle = ref('新的会话');
 const chatSessionId = ref('');
+const chatSessionRecordId = ref('');
 const chatSessionType = ref('');
 
 /**
@@ -445,7 +665,7 @@ const isImageAttachment = (attachment: ChatAttachment) => {
   const contentType = attachment.content_type || attachment.contentType || '';
   const fileName = attachmentFileName(attachment).toLowerCase();
   return attachment.kind === 'image'
-    || contentType.startsWith('image/')
+    || ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp'].includes(contentType.toLowerCase())
     || /\.(png|jpe?g|webp|gif|bmp)$/i.test(fileName);
 };
 
@@ -464,6 +684,11 @@ const openAttachmentPreview = (attachment: ChatAttachment) => {
 const removePendingAttachment = (index: number) => {
   pendingAttachments.value.splice(index, 1);
 };
+
+onUnmounted(() => {
+  isUserStoppingChat.value = true;
+  currentChatAbortController.value?.abort();
+});
 
 const createDeepThinkingStreamingParts = (content: string): ChatMessagePart[] => {
   const parts: ChatMessagePart[] = [createThinkingPart('running')];
@@ -488,7 +713,7 @@ const markChartAsLoaded = (message: ChatMessage) => {
 };
 
 const dispatchChartData = (jsonData: any) => {
-  window.dispatchEvent(new CustomEvent('inspectChartData', {
+  window.dispatchEvent(new CustomEvent('dataVisualizationChartData', {
     detail: {
       chartType: jsonData.chart_type || 'line',
       option: jsonData.option || jsonData,
@@ -530,6 +755,20 @@ const processMessageFormat = (message: ChatMessage) => {
   }
 };
 
+const refreshChatSessionExtraData = async () => {
+  if (!chatSessionId.value) {
+    chatSessionExtraData.value = '';
+    return;
+  }
+  try {
+    const data = await DihService.getChatSession(chatSessionId.value, { type: chatSessionType.value });
+    chatSessionRecordId.value = data.id || chatSessionRecordId.value;
+    chatSessionExtraData.value = data.extraData || '';
+  } catch (error) {
+    console.error('刷新会话附加数据失败:', error);
+  }
+};
+
 const getChatSession = async () => {
   // 优先使用 props 传入的参数（悬浮窗模式），否则从路由获取
   if (props.chatSessionType) {
@@ -564,7 +803,9 @@ const getChatSession = async () => {
   if (chatSessionId.value) {
     try {
       const data = await DihService.getChatSession(chatSessionId.value,{type:chatSessionType.value});
+      chatSessionRecordId.value = data.id || '';
       messages.value = data.messageList;
+      chatSessionExtraData.value = data.extraData || '';
       
       // 延迟处理消息格式，确保右侧组件已经完全挂载
       setTimeout(() => {
@@ -583,6 +824,8 @@ const getChatSession = async () => {
         content: '嘿！我是你的人工智能助手。有什么问题尽管问我吧！',
         time: getCurrentFormattedDate()
       }];
+      chatSessionExtraData.value = '';
+      chatSessionRecordId.value = '';
       chatSessionTitle.value = '新的会话';
     }
   } else {
@@ -591,6 +834,8 @@ const getChatSession = async () => {
         content: '嘿！我是你的人工智能助手。有什么问题尽管问我吧！',
         time: getCurrentFormattedDate()
       }];
+    chatSessionExtraData.value = '';
+    chatSessionRecordId.value = '';
     chatSessionTitle.value = '新的会话';
   }
 
@@ -692,15 +937,51 @@ const insertLineBreak = () => {
   }
 }
 
+const markMessageStopped = (messageIndex: number | null) => {
+  if (messageIndex === null || !messages.value[messageIndex]) {
+    return;
+  }
+  const message = messages.value[messageIndex];
+  message.loading = false;
+  message.isError = false;
+  if (message.content?.includes('[已停止生成]')) {
+    return;
+  }
+  message.content = message.content?.trim()
+    ? `${message.content}\n\n[已停止生成]`
+    : '已停止生成';
+  message.parts = undefined;
+};
+
+const stopCurrentChat = () => {
+  if (!currentChatAbortController.value || !isStreamingResponse.value) {
+    return;
+  }
+  isUserStoppingChat.value = true;
+  currentChatAbortController.value.abort();
+  markMessageStopped(currentStreamingMessageIndex.value);
+  ElMessage.info('已停止生成');
+  scrollToBottom();
+};
+
 // 发送消息
-const sendMessage = async () => {
-  if (canSendMessage.value) {
+const sendMessage = async (options: SendMessageOptions = {}) => {
+  const explicitMessage = options.content?.trim();
+  const explicitRequestMessage = options.requestContent?.trim();
+  const canSend = explicitMessage
+    ? !isUploadingAttachment.value && !isStreamingResponse.value
+    : canSendMessage.value;
+
+  if (canSend) {
     // 清空输入框 
-    const sendMessage = inputMessage.value.trim();
-    const messageAttachments = pendingAttachments.value.slice();
-    const displayMessage = sendMessage || '请分析上传的附件内容。';
-    inputMessage.value = ''
-    pendingAttachments.value = []
+    const currentInputMessage = inputMessage.value.trim();
+    const sendMessage = explicitRequestMessage || explicitMessage || currentInputMessage;
+    const messageAttachments = explicitMessage ? [] : pendingAttachments.value.slice();
+    const displayMessage = explicitMessage || currentInputMessage || '请分析上传的附件内容。';
+    if (!explicitMessage) {
+      inputMessage.value = ''
+      pendingAttachments.value = []
+    }
     // 添加用户消息
     messages.value.push({
       sender: 'user',
@@ -722,11 +1003,17 @@ const sendMessage = async () => {
     scrollToBottom();
 
     
+    const abortController = new AbortController();
+    currentChatAbortController.value = abortController;
+    currentStreamingMessageIndex.value = aiMessageIndex;
+    isUserStoppingChat.value = false;
+    isStreamingResponse.value = true;
+
     try {
       let accumulatedContent = '';
       const streamOk = await DihService.chatEvents({
         type: chatSessionType.value,
-        message: displayMessage,
+        message: sendMessage,
         model: modelSelectData.value.period,
         deep_think: isDeepThinking.value,
         chat_id: chatSessionId.value, // 使用正确的chatSessionId
@@ -753,6 +1040,7 @@ const sendMessage = async () => {
               loading: false,
             };
             processMessageFormat(messages.value[aiMessageIndex]);
+            await refreshChatSessionExtraData();
           } else {
             messages.value[aiMessageIndex].loading = false;
             messages.value[aiMessageIndex].content = accumulatedContent;
@@ -764,16 +1052,22 @@ const sendMessage = async () => {
 
         if (event.event === 'error') {
           messages.value[aiMessageIndex].loading = false;
+          messages.value[aiMessageIndex].isError = true;
           messages.value[aiMessageIndex].content = typeof event.message === 'string'
             ? event.message
             : '抱歉，回复失败，请稍后重试~';
           await nextTick();
           scrollToBottom();
         }
-      });
+      }, { signal: abortController.signal });
 
       if (!streamOk) {
+        if (abortController.signal.aborted || isUserStoppingChat.value) {
+          markMessageStopped(aiMessageIndex);
+          return;
+        }
         messages.value[aiMessageIndex].loading = false;
+        messages.value[aiMessageIndex].isError = true;
         messages.value[aiMessageIndex].content = '抱歉，回复失败，请稍后重试~';
         return;
       }
@@ -782,27 +1076,217 @@ const sendMessage = async () => {
       const isNewChat = router.currentRoute.value.query.createSession;
       // 如果是新聊天且至少有一条完整的消息交互，则添加到聊天列表
       if (isNewChat && messages.value.length >= 2) {
+        let createdSession: ChatSession | null = null;
+        try {
+          createdSession = await DihService.getChatSession(chatSessionId.value, { type: chatSessionType.value });
+          chatSessionRecordId.value = createdSession?.id || chatSessionRecordId.value;
+          chatSessionExtraData.value = createdSession?.extraData || chatSessionExtraData.value;
+        } catch (error) {
+          console.warn('获取新会话真实ID失败，将使用sessionId作为临时ID:', error);
+        }
         // 创建新的聊天记录项
         const newChatItem = {
-          id: chatSessionId.value,
-          type: chatSessionType.value,
-          sessionId: chatSessionId.value,
-          title: displayMessage.substring(0, 20) + (displayMessage.length > 20 ? '...' : ''), // 使用前20个字符作为标题
-          pin: false
+          id: createdSession?.id || chatSessionId.value,
+          type: createdSession?.type || chatSessionType.value,
+          sessionId: createdSession?.sessionId || chatSessionId.value,
+          title: createdSession?.title || `${displayMessage.substring(0, 20)}${displayMessage.length > 20 ? '...' : ''}`,
+          pin: createdSession?.pin || false,
         };
         // 触发事件通知父组件添加新的聊天项
         // 这里可以通过emit或者其他方式通知view-left组件
         window.dispatchEvent(new CustomEvent('newChatCreated', { 
           detail: { chatItem: newChatItem } 
         }));
+        const nextQuery = { ...router.currentRoute.value.query };
+        delete nextQuery.createSession;
+        router.replace({ name: 'service-dih', query: nextQuery });
       }
     } catch (error) {
+      if (abortController.signal.aborted || isUserStoppingChat.value) {
+        markMessageStopped(aiMessageIndex);
+        return;
+      }
       console.error('聊天接口调用失败:', error);
       messages.value[aiMessageIndex].loading = false;
+      messages.value[aiMessageIndex].isError = true;
       messages.value[aiMessageIndex].content = '抱歉，回复失败，请稍后重试~';
+    } finally {
+      if (currentChatAbortController.value === abortController) {
+        currentChatAbortController.value = null;
+      }
+      if (currentStreamingMessageIndex.value === aiMessageIndex) {
+        currentStreamingMessageIndex.value = null;
+      }
+      isStreamingResponse.value = false;
+      isUserStoppingChat.value = false;
     }
   }
 }
+
+type ReportQuickActionEventDetail = {
+  displayContent?: string;
+  requestContent?: string;
+  target?: 'document' | 'selection';
+  actionKey?: string;
+  selectionId?: string;
+};
+
+type ReportExtraDataChangedEventDetail = {
+  extraData?: string;
+};
+
+const handleReportRecordsRequested = () => {
+  publishReportRecords();
+};
+
+const handleReportExtraDataChanged = (event: Event) => {
+  const detail = (event as CustomEvent<ReportExtraDataChangedEventDetail>).detail || {};
+  if (typeof detail.extraData === 'string') {
+    chatSessionExtraData.value = detail.extraData;
+  }
+};
+
+const stripSelectionRewriteFence = (content = '') => {
+  const trimmed = content.trim();
+  const match = trimmed.match(/^```(?:[\w:-]+)?\s*\n?([\s\S]*?)\n?```$/);
+  return (match?.[1] || trimmed).trim();
+};
+
+const extractSelectionRewriteContent = (message?: ChatMessage) => {
+  if (!message) {
+    return '';
+  }
+  const preferredPart = message.parts?.find(part => {
+    return ['report-document', 'markdown', 'code'].includes(part.type) && !!part.content?.trim();
+  });
+  return stripSelectionRewriteFence(preferredPart?.content || message.content || '');
+};
+
+const handleReportQuickActionRequested = async (event: Event) => {
+  const detail = (event as CustomEvent<ReportQuickActionEventDetail>).detail || {};
+  const requestContent = detail.requestContent?.trim();
+  if (!requestContent) {
+    ElMessage.warning('快捷写作指令为空');
+    return;
+  }
+  if (isStreamingResponse.value) {
+    ElMessage.warning('当前正在生成，请稍后再试');
+    return;
+  }
+  const messageStartIndex = messages.value.length;
+  await sendMessage({
+    content: detail.displayContent || '请根据右侧文档执行 AI 写作操作。',
+    requestContent,
+  });
+  if (detail.target === 'selection') {
+    const responseMessage = [...messages.value.slice(messageStartIndex)]
+      .reverse()
+      .find(message => message.sender === 'ai' && !message.loading && !message.isError);
+    window.dispatchEvent(new CustomEvent(REPORT_SELECTION_REWRITE_COMPLETED_EVENT, {
+      detail: {
+        selectionId: detail.selectionId,
+        actionKey: detail.actionKey,
+        content: extractSelectionRewriteContent(responseMessage),
+      },
+    }));
+  }
+};
+
+onMounted(() => {
+  window.addEventListener(DATA_REPORT_RECORD_REQUEST_EVENT, handleReportRecordsRequested);
+  window.addEventListener(REPORT_EXTRA_DATA_CHANGED_EVENT, handleReportExtraDataChanged);
+  window.addEventListener(REPORT_QUICK_ACTION_EVENT, handleReportQuickActionRequested);
+  nextTick(() => publishReportRecords());
+});
+
+onUnmounted(() => {
+  window.removeEventListener(DATA_REPORT_RECORD_REQUEST_EVENT, handleReportRecordsRequested);
+  window.removeEventListener(REPORT_EXTRA_DATA_CHANGED_EVENT, handleReportExtraDataChanged);
+  window.removeEventListener(REPORT_QUICK_ACTION_EVENT, handleReportQuickActionRequested);
+});
+
+const confirmAction = (part: ChatMessagePart) => {
+  const action = part.metadata?.action;
+  return typeof action === 'string' ? action : '';
+};
+
+const autoConfirmMessage = (action: string) => {
+  if (action === 'analysis.create_continuous_task') {
+    return '我已确认持续分析任务方案，请根据上一条确认卡和配置开始创建数据推送服务与 AI 分析任务。';
+  }
+  if (action === 'policy.apply_to_production') {
+    return '我已确认更新生产策略配置，请根据上一条确认卡、模拟测试结果和配置块，通过配置管理 MCP 写入系统配置。';
+  }
+  if (action === 'data_access.generate_demo_push_config') {
+    return '我已确认继续生成用户事件数据推送服务配置。请先生成完整的数据推送服务配置并展示给我确认，不要创建或启动数据推送服务。';
+  }
+  if (action === 'data_access.create_demo_push_task') {
+    return '我已确认创建用户事件数据推送服务，请根据上一条确认卡和数据推送配置创建并启动数据推送服务。';
+  }
+  if (action === 'data_visualization.apply_config') {
+    return '我已确认并授权应用上一轮数据可视化配置。请根据上一条确认卡和已生成的配置内容，按需调用配置、看板和菜单 MCP 工具写入系统；写入或创建成功后，请输出 zenvis:visualization-config-record、zenvis:dashboard-config-record、zenvis:menu-config-record 等记录围栏。';
+  }
+  if (action === 'data_visualization.add_chart_library') {
+    return '我已确认把上一轮临时图表加入图表库，请记录该图表的 amis 配置并输出 zenvis:visualization-chart-record。';
+  }
+  return '我已确认研判分析方案，请根据上一条确认卡开始执行一次性研判分析。';
+};
+
+const autoRejectMessage = (action: string) => {
+  if (action === 'data_access.generate_demo_push_config') {
+    return '我已取消生成用户事件数据推送服务配置。请记录本次演示到元数据配置阶段结束，不要生成数据推送配置，也不要创建数据推送服务。';
+  }
+  if (action === 'data_access.create_demo_push_task') {
+    return '我已取消创建用户事件数据推送服务。请记录数据推送配置已生成但未添加到系统，不要创建或启动数据推送服务。';
+  }
+  if (action === 'data_visualization.apply_config') {
+    return '我选择放弃本次数据可视化配置。请记录本次配置已放弃，不要写入 open_config，不要创建菜单，也不要创建看板。';
+  }
+  return '我已取消本次操作。';
+};
+
+const dataVisualizationDecisionMessage = (decision: 'revise', detail?: string) => {
+  const focus = detail?.trim() || '请基于上一轮数据可视化配置继续优化展示字段、图表布局、菜单或看板配置。';
+  return `我需要补充信息继续更新数据可视化配置。调整要求如下：\n${focus}\n请基于上一轮数据可视化配置重新生成完整配置，并再次展示完整配置和后续选择。`;
+};
+
+const dataVisualizationDecisionDisplayMessage = (decision: 'revise', detail?: string) => {
+  const focus = detail?.trim() || '继续优化数据可视化配置。';
+  return `我已补充数据可视化配置调整要求：\n${focus}`;
+};
+
+const analysisDecisionMessage = (decision: 'dispose' | 'ignore' | 'continue', detail?: string) => {
+  if (decision === 'dispose') {
+    return '我选择执行处置。请基于上一轮研判结论、关键证据和处置策略配置，进入处置执行准备流程；先说明拟执行动作、影响范围、回滚方案和需要我确认的配置。';
+  }
+  if (decision === 'ignore') {
+    return '我选择忽略本次告警。请基于上一轮研判结论记录忽略原因、适用条件和后续观察建议，不执行处置动作。';
+  }
+  const focus = detail?.trim() || '请围绕上一轮尚未闭环的疑点继续补充证据。';
+  return `我需要补充信息继续研判。补充研判重点如下：\n${focus}\n请基于上一轮证据继续研判，并说明新增证据、结论变化和下一步建议。`;
+};
+
+const dataAccessDecisionMessage = (decision: 'apply_config' | 'abandon' | 'revise', detail?: string) => {
+  if (decision === 'apply_config') {
+    return '我已确认并授权添加上一轮已生成并展示的 meta 元数据配置到系统。本条消息就是写入授权：请不要再次询问是否添加配置。请立即按顺序调用元数据配置 MCP：1. policy_config_tree(type="meta") 检查目标文件是否存在；2. 如果目标文件不存在，调用 policy_config_add(type="meta", configDto={"fileName":"<目标文件名>"}) 创建文件；3. 调用 policy_config_apply(type="meta", configDto={"fileName":"<目标文件名>","text":"<上一轮完整 meta json>"}) 写入并应用；4. 调用 policy_config_read(type="meta", fileName="<目标文件名>") 读回校验文件确实存在且内容已写入；5. 只有在目标文件已存在且需要覆盖时，才先读取旧文件、说明差异并等待我确认覆盖。只有 MCP 返回成功且读回校验通过后，才用 Markdown 围栏代码块输出 zenvis:meta-config-record 记录；zenvis:meta-config-record 不是工具名，请不要调用它。';
+  }
+  if (decision === 'abandon') {
+    return '我选择放弃本次元数据配置。请记录本次配置已放弃，不要写入系统，也不要继续创建或更新相关配置。';
+  }
+  const focus = detail?.trim() || '请基于上一轮配置继续优化字段、实体或展示规则。';
+  return `我需要补充信息继续更新元数据配置。调整要求如下：\n${focus}\n请基于上一轮 meta 配置重新生成完整配置，并再次展示完整配置和后续选择。`;
+};
+
+const dataAccessDecisionDisplayMessage = (decision: 'apply_config' | 'abandon' | 'revise', detail?: string) => {
+  if (decision === 'apply_config') {
+    return '我已确认添加配置到系统。';
+  }
+  if (decision === 'abandon') {
+    return '我已放弃本次元数据配置。';
+  }
+  const focus = detail?.trim() || '继续优化元数据配置。';
+  return `我已补充配置调整要求：\n${focus}`;
+};
 
 // 切换任务折叠状态
 const toggleTask = (index: number) => {
@@ -825,12 +1309,30 @@ const modelSelectData = ref<SelectData>({
   period: 'qianwen-max',
 })
 
-const handleModelCommand = (command: string) => {
-  modelSelectData.value.period = command
-}
-
-
 // 上传文件
+const validateFilesBeforeUpload = (files: File[]) => {
+  const selectedFiles = files.slice(0, MAX_FILES_PER_PICK);
+  if (files.length > MAX_FILES_PER_PICK) {
+    ElMessage.warning(`单次最多选择 ${MAX_FILES_PER_PICK} 个附件，已自动忽略多余文件`);
+  }
+  const validFiles = selectedFiles.filter(file => file.size <= MAX_UPLOAD_BYTES);
+  const oversizedFiles = selectedFiles.filter(file => file.size > MAX_UPLOAD_BYTES);
+  if (oversizedFiles.length) {
+    ElMessage.error(`已忽略 ${oversizedFiles.length} 个超过 30MB 的附件`);
+  }
+  return validFiles;
+};
+
+const uploadFilesWithConcurrency = async (files: File[]) => {
+  const attachments: ChatAttachment[] = [];
+  for (let index = 0; index < files.length; index += UPLOAD_CONCURRENCY) {
+    const batch = files.slice(index, index + UPLOAD_CONCURRENCY);
+    const batchAttachments = await Promise.all(batch.map(file => DihService.uploadFile(file)));
+    attachments.push(...batchAttachments);
+  }
+  return attachments;
+};
+
 const uploadFile = () => {
   if (isUploadingAttachment.value) {
     return;
@@ -843,13 +1345,17 @@ const uploadFile = () => {
   fileInput.onchange = async (event) => {
     const target = event.target as HTMLInputElement;
     if (target.files && target.files.length > 0) {
-      const files = Array.from(target.files);
+      const files = validateFilesBeforeUpload(Array.from(target.files));
+      if (!files.length) {
+        if (fileInput.parentNode) {
+          document.body.removeChild(fileInput);
+        }
+        return;
+      }
       isUploadingAttachment.value = true;
       try {
-        for (const file of files) {
-          const attachment = await DihService.uploadFile(file);
-          pendingAttachments.value.push(attachment);
-        }
+        const attachments = await uploadFilesWithConcurrency(files);
+        pendingAttachments.value.push(...attachments);
         ElMessage.success(files.length > 1 ? `已添加 ${files.length} 个附件` : `已添加附件「${files[0].name}」`);
       } catch (err) {
         console.error('文件上传失败', err);
@@ -907,15 +1413,70 @@ const handleMouseLeave = (type: string) => {
 };
 
 // 复制消息到剪贴板
-const copyMessage = (content: string) => {
-  navigator.clipboard.writeText(content).then(() => {
-  }, () => {
+const copyMessage = async (content: string) => {
+  const copied = await copyTextToClipboard(content);
+  if (copied) {
+    ElMessage.success('已复制到剪贴板');
+  } else {
+    ElMessage.error('复制失败，请手动复制');
+  }
+};
+
+const fillPromptSuggestion = (prompt: string) => {
+  inputMessage.value = prompt;
+};
+
+const infoStepsDisplayMessage = (part: ChatMessagePart, answers: InfoStepAnswer[]) => {
+  const title = part.title || '需要补充信息';
+  if (!answers.length) {
+    return `我已补充「${title}」所需信息。`;
+  }
+  return `我已补充以下信息：\n${answers.map(answer => `- ${answer.title}：${answer.value}`).join('\n')}`;
+};
+
+const infoStepsRequestMessage = (part: ChatMessagePart, answers: InfoStepAnswer[]) => {
+  return [
+    '我已根据上一条补充信息卡片提交以下结构化补充内容，请基于这些信息继续处理，不要重复询问已补充项。',
+    '',
+    JSON.stringify({
+      title: part.title || '需要补充信息',
+      content: part.content || '',
+      answers,
+    }, null, 2),
+  ].join('\n');
+};
+
+const handleInfoStepsSubmit = async (
+  message: ChatMessage,
+  payload: { part: ChatMessagePart; answers: InfoStepAnswer[] }
+) => {
+  if (!chatSessionId.value || !message.id || !payload.part.id) {
+    ElMessage.warning('缺少补充信息卡片标识，无法记录提交结果');
+    return;
+  }
+
+  try {
+    await DihService.recordActionDecision({
+      chat_id: chatSessionId.value,
+      message_id: message.id,
+      part_id: payload.part.id,
+      decision: 'submitted',
+    });
+  } catch (error) {
+    console.error('记录补充信息提交失败:', error);
+  }
+  payload.part.status = 'submitted';
+  ElMessage.success('已提交补充信息');
+  await nextTick();
+  await sendMessage({
+    content: infoStepsDisplayMessage(payload.part, payload.answers),
+    requestContent: infoStepsRequestMessage(payload.part, payload.answers),
   });
 };
 
 const handleActionDecision = async (
   message: ChatMessage,
-  payload: { part: ChatMessagePart; decision: 'approved' | 'rejected' }
+  payload: { part: ChatMessagePart; decision: 'approved' | 'rejected' | 'revise'; detail?: string }
 ) => {
   if (!chatSessionId.value || !message.id || !payload.part.id) {
     ElMessage.warning('缺少确认记录标识，无法记录操作结果');
@@ -929,11 +1490,123 @@ const handleActionDecision = async (
       part_id: payload.part.id,
       decision: payload.decision,
     });
-    payload.part.status = payload.decision;
-    ElMessage.success(payload.decision === 'approved' ? '已确认执行' : '已取消操作');
   } catch (error) {
     console.error('记录确认结果失败:', error);
   }
+  payload.part.status = payload.decision;
+  const action = confirmAction(payload.part);
+  if (payload.decision === 'revise' && action === 'data_visualization.apply_config') {
+    ElMessage.success('已提交配置调整要求');
+    await nextTick();
+    await sendMessage({
+      content: dataVisualizationDecisionDisplayMessage(payload.decision, payload.detail),
+      requestContent: dataVisualizationDecisionMessage(payload.decision, payload.detail),
+    });
+    return;
+  }
+  ElMessage.success(payload.decision === 'approved' ? '已确认执行' : '已取消操作');
+  if (payload.decision === 'approved' && AUTO_CONFIRM_ACTIONS.has(action)) {
+    await nextTick();
+    await sendMessage({ content: autoConfirmMessage(action) });
+  } else if (payload.decision === 'rejected' && AUTO_REJECT_ACTIONS.has(action)) {
+    await nextTick();
+    await sendMessage({ content: autoRejectMessage(action) });
+  }
+};
+
+const handleAddChartLibrary = async (_message: ChatMessage, part: ChatMessagePart) => {
+  const action = confirmAction(part);
+  if (action !== 'data_visualization.add_chart_library') {
+    ElMessage.warning('当前图表不支持加入图表库');
+    return;
+  }
+  if (part.status === 'submitted' || part.status === 'added') {
+    ElMessage.info('该图表已加入图表库');
+    return;
+  }
+  const previousExtraData = chatSessionExtraData.value;
+  const previousStatus = part.status;
+  try {
+    const sessionRecordId = await ensureChatSessionRecordId();
+    if (!sessionRecordId) {
+      ElMessage.warning('当前会话尚未创建完成，无法加入图表库');
+      return;
+    }
+    const record = buildChartLibraryRecord(part);
+    const nextExtraData = addChartRecordToExtraData(record);
+    part.status = 'added';
+    chatSessionExtraData.value = nextExtraData;
+    await DihService.updateChatSession(sessionRecordId, { extra_data: nextExtraData });
+    ElMessage.success('已加入图表库');
+  } catch (error) {
+    console.error('加入图表库失败:', error);
+    part.status = previousStatus;
+    chatSessionExtraData.value = previousExtraData;
+    ElMessage.error('加入图表库失败');
+  }
+};
+
+const handleAnalysisDecision = async (
+  message: ChatMessage,
+  payload: { part: ChatMessagePart; decision: 'dispose' | 'ignore' | 'continue'; detail?: string }
+) => {
+  if (!chatSessionId.value || !message.id || !payload.part.id) {
+    ElMessage.warning('缺少研判选择记录标识，无法记录操作结果');
+    return;
+  }
+
+  try {
+    await DihService.recordActionDecision({
+      chat_id: chatSessionId.value,
+      message_id: message.id,
+      part_id: payload.part.id,
+      decision: payload.decision,
+    });
+  } catch (error) {
+    console.error('记录研判后续选择失败:', error);
+  }
+  payload.part.status = payload.decision;
+  const toastMap = {
+    dispose: '已选择执行处置',
+    ignore: '已选择忽略告警',
+    continue: '已提交补充研判重点',
+  };
+  ElMessage.success(toastMap[payload.decision]);
+  await nextTick();
+  await sendMessage({ content: analysisDecisionMessage(payload.decision, payload.detail) });
+};
+
+const handleDataAccessDecision = async (
+  message: ChatMessage,
+  payload: { part: ChatMessagePart; decision: 'apply_config' | 'abandon' | 'revise'; detail?: string }
+) => {
+  if (!chatSessionId.value || !message.id || !payload.part.id) {
+    ElMessage.warning('缺少数据接入选择记录标识，无法记录操作结果');
+    return;
+  }
+
+  try {
+    await DihService.recordActionDecision({
+      chat_id: chatSessionId.value,
+      message_id: message.id,
+      part_id: payload.part.id,
+      decision: payload.decision,
+    });
+  } catch (error) {
+    console.error('记录数据接入后续选择失败:', error);
+  }
+  payload.part.status = payload.decision;
+  const toastMap = {
+    apply_config: '已选择添加配置到系统',
+    abandon: '已放弃本次配置',
+    revise: '已提交配置调整要求',
+  };
+  ElMessage.success(toastMap[payload.decision]);
+  await nextTick();
+  await sendMessage({
+    content: dataAccessDecisionDisplayMessage(payload.decision, payload.detail),
+    requestContent: dataAccessDecisionMessage(payload.decision, payload.detail),
+  });
 };
 
 // 分享消息（示例）
@@ -1254,7 +1927,7 @@ const dislikeMessage = (index: number) => {
 
 :deep(.el-textarea__inner) {
   border: none;
-  padding: 12px 150px 12px 12px;
+  padding: 12px min(220px, 48%) 12px 12px;
   resize: none;
   box-shadow: none;
 }
@@ -1268,14 +1941,49 @@ const dislikeMessage = (index: number) => {
   right: 10px;
   bottom: 8px;
   display: flex;
+  align-items: center;
   gap: 5px;
+}
+
+.model-select {
+  width: 60px;
+}
+
+:deep(.model-select .el-select__wrapper) {
+  min-height: 28px;
+  padding: 0 6px;
+  background: transparent;
+  box-shadow: none;
+  border: none;
+  border-radius: 6px;
+}
+
+:deep(.model-select .el-select__wrapper:hover),
+:deep(.model-select .el-select__wrapper.is-focused) {
+  box-shadow: none;
+}
+
+:deep(.model-select .el-select__selected-item) {
+  max-width: 28px;
+}
+
+:global(.dih-model-select-popper) {
+  max-width: 320px;
+}
+
+:global(.dih-model-select-popper .el-select-dropdown__wrap) {
+  max-height: 260px;
+}
+
+:global(.dih-model-select-popper .el-select-dropdown__item) {
+  max-width: 300px;
 }
 
 .pending-attachments {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 0 150px 10px 12px;
+  padding: 0 min(220px, 48%) 10px 12px;
 }
 
 .pending-attachment,
@@ -1395,6 +2103,38 @@ const dislikeMessage = (index: number) => {
 
 .send-btn:hover {
   color: #66b1ff;
+}
+
+.stop-btn {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  color: #fff;
+  background-color: #ff4d4f;
+  box-shadow: 0 4px 10px rgba(255, 77, 79, 0.28);
+  transition: background-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+.stop-btn:hover,
+.stop-btn:focus {
+  color: #fff;
+  background-color: #ff6b6d;
+  box-shadow: 0 6px 14px rgba(255, 77, 79, 0.36);
+}
+
+.stop-btn:active {
+  transform: scale(0.94);
+  background-color: #e94749;
+}
+
+.stop-icon-square {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background-color: currentColor;
 }
 
 .suggestions {
@@ -1825,19 +2565,6 @@ const dislikeMessage = (index: number) => {
   color: #303133;
 }
 
-.chart-filter {
-  display: flex;
-  align-items: center;
-  font-size: 13px;
-  color: #606266;
-  cursor: pointer;
-  padding: 4px;
-}
-
-.chart-filter .el-icon {
-  margin-left: 4px;
-}
-
 .chart-placeholder {
   display: flex;
   flex-direction: column;
@@ -1986,9 +2713,6 @@ const dislikeMessage = (index: number) => {
 
 
 .message-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 40px;
@@ -1997,25 +2721,32 @@ const dislikeMessage = (index: number) => {
 .message-item {
   display: flex;
   justify-content: flex-start;
+  min-width: 0;
 }
 
 .message-bubble {
   max-width: 80%;
+  min-width: 0;
   padding: 12px 16px;
   border-radius: 12px;
   line-height: 1.5;
   word-break: break-word;
+  overflow-wrap: anywhere;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
   position: relative;
 }
 
 .user-message {
+  max-width: 80%;
+  min-width: 0;
   background-color: #e6f1fc;
   align-self: flex-end;
   border-bottom-right-radius: 4px;
 }
 
 .ai-message {
+  max-width: 80%;
+  min-width: 0;
   background-color: #f5f7fa;
   align-self: flex-start;
   border-bottom-left-radius: 4px;
@@ -2025,11 +2756,13 @@ const dislikeMessage = (index: number) => {
   display: flex;
   flex-direction: row-reverse;
   width: 100%;
+  min-width: 0;
 }
 
 .ai-message-container {
   display: flex;
   width: 100%;
+  min-width: 0;
 }
 
 .avatar {
@@ -2052,12 +2785,16 @@ const dislikeMessage = (index: number) => {
   margin: 0;
   font-size: 14px;
   color: #303133;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* 添加用户消息内容样式，支持换行 */
 .user-content {
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 /* 添加Markdown内容样式 */

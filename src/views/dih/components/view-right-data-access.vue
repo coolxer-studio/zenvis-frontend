@@ -9,16 +9,52 @@
           :name="section.name"
         >
           <div class="config-table-container">
-            <el-table :data="section.items" stripe style="width: 100%">
-              <el-table-column prop="id" label="ID" min-width="100" />
-              <el-table-column prop="name" label="名称" min-width="180" show-overflow-tooltip />
-              <el-table-column label="跳转链接" min-width="180" show-overflow-tooltip>
+            <el-empty v-if="!section.items.length" class="empty-state" description="暂无记录" />
+            <el-table v-else :data="section.items" stripe table-layout="fixed" style="width: 100%">
+              <el-table-column v-if="section.name !== 'metadataConfigs'" prop="id" label="ID" show-overflow-tooltip />
+              <el-table-column label="名称" show-overflow-tooltip>
                 <template #default="scope">
-                  <el-link type="primary" :href="scope.row.jumpLink" :underline="false">
-                    {{ scope.row.jumpLink }}
-                  </el-link>
+                  <el-button
+                    v-if="section.name === 'dataPushServices' && scope.row.name"
+                    class="record-link"
+                    text
+                    type="primary"
+                    @click="openDataPushService(scope.row)"
+                  >
+                    {{ scope.row.name }}
+                  </el-button>
+                  <span v-else>{{ scope.row.name || '-' }}</span>
                 </template>
               </el-table-column>
+              <el-table-column label="状态">
+                <template #default="scope">
+                  <el-tag :type="statusTagType(scope.row.status)" effect="plain">
+                    {{ statusLabel(scope.row.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <template v-if="section.name === 'metadataConfigs'">
+                <el-table-column label="文件" show-overflow-tooltip>
+                  <template #default="scope">
+                    <el-button
+                      v-if="scope.row.fileName"
+                      class="record-link"
+                      text
+                      type="primary"
+                      @click="openMetaConfig(scope.row)"
+                    >
+                      {{ scope.row.fileName }}
+                    </el-button>
+                    <span v-else>-</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="tableName" label="目标表" show-overflow-tooltip />
+                <el-table-column prop="fieldCount" label="字段" show-overflow-tooltip />
+              </template>
+              <template v-else>
+                <el-table-column prop="taskId" label="任务ID" show-overflow-tooltip />
+                <el-table-column prop="description" label="描述" show-overflow-tooltip />
+              </template>
             </el-table>
           </div>
         </el-tab-pane>
@@ -28,100 +64,117 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
-interface ConfigItem {
-  id: string
-  name: string
-  jumpLink: string
+type ConsoleRecord = Record<string, unknown> & {
+  id?: string
+  name?: string
+  status?: string
+  fileName?: string
+  tableName?: string
+  fieldCount?: number
+  taskId?: string
+  description?: string
 }
 
-interface ConfigSection {
-  name: string
-  label: string
-  items: ConfigItem[]
+type DataAccessRecordEventDetail = {
+  metadataConfigs?: unknown[]
+  dataPushServices?: unknown[]
 }
+
+const DATA_ACCESS_RECORD_EVENT = 'dihDataAccessRecordsUpdated'
 
 const activeTab = ref('metadataConfigs')
+const metadataConfigs = ref<ConsoleRecord[]>([])
+const dataPushServices = ref<ConsoleRecord[]>([])
+const router = useRouter()
 
-const dataPushServices: ConfigItem[] = [
-  {
-    id: 'push-001',
-    name: '主机行为数据推送服务',
-    jumpLink: '/dih/data-access/push-service/host-behavior'
-  },
-  {
-    id: 'push-002',
-    name: '威胁情报数据推送服务',
-    jumpLink: '/dih/data-access/push-service/threat-intel'
-  },
-  {
-    id: 'push-003',
-    name: '资产基线数据推送服务',
-    jumpLink: '/dih/data-access/push-service/asset-baseline'
+const asRecordList = (value: unknown): ConsoleRecord[] => {
+  return Array.isArray(value)
+    ? value.filter(item => item && typeof item === 'object').map(item => item as ConsoleRecord)
+    : []
+}
+
+const metadataConfigRows = computed<ConsoleRecord[]>(() => metadataConfigs.value.map(record => {
+  const row = { ...record }
+  delete row.id
+  return row
+}))
+
+const configSections = computed(() => [
+  { name: 'metadataConfigs', label: '元数据配置', items: metadataConfigRows.value },
+  { name: 'dataPushServices', label: '数据推送服务', items: dataPushServices.value },
+])
+
+const statusLabel = (status?: string) => {
+  const labels: Record<string, string> = {
+    confirmed: '已确认',
+    applied: '已应用',
+    created: '已创建',
+    running: '运行中',
+    stopped: '已停止',
+    error: '异常',
   }
-]
+  return status ? labels[status] || status : '未记录'
+}
 
-const metadataConfigs: ConfigItem[] = [
-  {
-    id: 'meta-001',
-    name: '主机行为元数据配置',
-    jumpLink: '/dih/data-access/metadata/host-behavior'
-  },
-  {
-    id: 'meta-002',
-    name: '威胁情报元数据配置',
-    jumpLink: '/dih/data-access/metadata/threat-intel'
-  },
-  {
-    id: 'meta-003',
-    name: '资产基线元数据配置',
-    jumpLink: '/dih/data-access/metadata/asset-baseline'
+const statusTagType = (status?: string) => {
+  if (status === 'running' || status === 'applied' || status === 'confirmed') {
+    return 'success'
   }
-]
-
-const visualizationConfigs: ConfigItem[] = [
-  {
-    id: 'view-001',
-    name: '主机行为可视化配置',
-    jumpLink: '/dih/data-access/visualization/host-behavior'
-  },
-  {
-    id: 'view-002',
-    name: '威胁情报可视化配置',
-    jumpLink: '/dih/data-access/visualization/threat-intel'
-  },
-  {
-    id: 'view-003',
-    name: '资产基线可视化配置',
-    jumpLink: '/dih/data-access/visualization/asset-baseline'
+  if (status === 'error') {
+    return 'danger'
   }
-]
-
-const menuConfigs: ConfigItem[] = [
-  {
-    id: 'menu-001',
-    name: '数据接入总览菜单',
-    jumpLink: '/dih/data-access/menu/overview'
-  },
-  {
-    id: 'menu-002',
-    name: '数据推送服务菜单',
-    jumpLink: '/dih/data-access/menu/push-service'
-  },
-  {
-    id: 'menu-003',
-    name: '配置管理菜单',
-    jumpLink: '/dih/data-access/menu/config-management'
+  if (status === 'stopped') {
+    return 'warning'
   }
-]
+  return 'info'
+}
 
-const configSections: ConfigSection[] = [
-  { name: 'metadataConfigs', label: '元数据配置', items: metadataConfigs },
-  { name: 'dataPushServices', label: '数据推送服务', items: dataPushServices },
-  { name: 'visualizationConfigs', label: '可视化配置', items: visualizationConfigs },
-  { name: 'menuConfigs', label: '菜单配置', items: menuConfigs }
-]
+const openRouteInNewTab = (routeLocation: Parameters<typeof router.resolve>[0]) => {
+  const route = router.resolve(routeLocation)
+  window.open(route.href, '_blank', 'noopener,noreferrer')
+}
+
+const openMetaConfig = (record: ConsoleRecord) => {
+  if (!record.fileName) {
+    return
+  }
+  openRouteInNewTab({
+    name: 'policy-config',
+    params: { menuParams: 'meta' },
+    query: { fileName: record.fileName },
+  })
+}
+
+const openDataPushService = (record: ConsoleRecord) => {
+  openRouteInNewTab({
+    name: 'low-code-page',
+    params: { menuParams: 'push-task' },
+    query: {
+      taskId: record.taskId || record.id || '',
+      sourceMark: typeof record.sourceMark === 'string' ? record.sourceMark : '',
+    },
+  })
+}
+
+const handleRecordsUpdated = (event: Event) => {
+  const detail = (event as CustomEvent<DataAccessRecordEventDetail>).detail || {}
+  metadataConfigs.value = asRecordList(detail.metadataConfigs)
+  dataPushServices.value = asRecordList(detail.dataPushServices)
+  if (!metadataConfigs.value.length && dataPushServices.value.length) {
+    activeTab.value = 'dataPushServices'
+  }
+}
+
+onMounted(() => {
+  window.addEventListener(DATA_ACCESS_RECORD_EVENT, handleRecordsUpdated)
+})
+
+onUnmounted(() => {
+  window.removeEventListener(DATA_ACCESS_RECORD_EVENT, handleRecordsUpdated)
+})
 </script>
 
 <style scoped>
@@ -161,7 +214,7 @@ const configSections: ConfigSection[] = [
 
 :deep(.el-tabs__nav) {
   background-color: #fff;
-  padding: 0 30px;
+  padding: 0 18px;
   width: 100%;
 }
 
@@ -177,5 +230,22 @@ const configSections: ConfigSection[] = [
 
 .config-table-container {
   padding: 12px;
+}
+
+.empty-state {
+  height: 220px;
+}
+
+.record-link {
+  max-width: 100%;
+  height: auto;
+  padding: 0;
+  vertical-align: baseline;
+}
+
+.record-link :deep(span) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

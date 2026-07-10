@@ -1,4 +1,4 @@
-export type ChatMessagePartType = 'markdown' | 'code' | 'notice' | 'confirm' | 'chart' | 'thinking';
+export type ChatMessagePartType = 'markdown' | 'code' | 'config' | 'report-document' | 'notice' | 'confirm' | 'info-steps' | 'analysis-decision' | 'data-access-decision' | 'metadata-config-record' | 'data-push-service-record' | 'visualization-chart-preview' | 'visualization-chart-record' | 'visualization-config-record' | 'dashboard-config-record' | 'menu-config-record' | 'prompt-suggestions' | 'chart' | 'thinking';
 
 export type ChatMessagePartStatus = 'pending' | 'approved' | 'rejected' | string;
 
@@ -63,9 +63,77 @@ export type ChatSession = {
   pin: boolean;
 };
 
+export type ReportDocument = {
+  id?: string;
+  documentId?: string;
+  title?: string;
+  name?: string;
+  format?: 'markdown' | 'html' | string;
+  version?: string;
+  status?: string;
+  source?: string;
+  updatedAt?: string;
+  content?: string;
+  outline?: Array<Record<string, unknown>>;
+  sourceAttachments?: Array<Record<string, unknown>>;
+  raw?: Record<string, unknown>;
+};
+
+export type ReportArtifact = {
+  id?: string;
+  artifactId?: string;
+  documentId?: string;
+  name?: string;
+  title?: string;
+  format?: 'markdown' | 'html' | string;
+  version?: string;
+  status?: string;
+  createdAt?: string;
+  content?: string;
+};
+
 export type ModelInfo = {
   model: string;
   desc: string;
+};
+
+export type SkillVo = {
+  id: string;
+  name: string;
+  description?: string;
+  version?: string;
+  author?: string;
+  agentTypes: string[];
+  tags: string[];
+  enabled: boolean;
+  entry: string;
+  path?: string;
+  updateTime?: string;
+};
+
+export type AgentSkillVo = {
+  skillId: string;
+  agentType: string;
+  label: string;
+  name?: string;
+  description?: string;
+  enabled: boolean;
+  order: number;
+  path?: string;
+  updateTime?: string;
+};
+
+export type SkillSearchParams = {
+  keyword?: string;
+  agentType?: string;
+  enabled?: boolean;
+  page?: number;
+  perPage?: number;
+};
+
+export type PageRowsVo<T> = {
+  rows: T[];
+  total: number;
 };
 
 // 上传文件响应
@@ -102,13 +170,14 @@ export type ChatActionDecisionParams = {
   chat_id: string;
   message_id: string;
   part_id: string;
-  decision: 'approved' | 'rejected';
+  decision: 'approved' | 'rejected' | 'dispose' | 'ignore' | 'continue' | 'apply_config' | 'abandon' | 'revise' | 'submitted';
 };
 
 // 聊天会话分页列表参数
 export type ChatSessionPageParams = {
   page?: number;
-  size?: number;
+  per_page?: number;
+  perPage?: number;
   type?: string;
   keyword?: string;
 };
