@@ -9,6 +9,8 @@ import {
   ChatMessagePart,
   ChatStreamEvent,
   ChatActionDecisionParams,
+  McpApprovalData,
+  McpApprovalDecisionParams,
   ChatSessionPageParams,
   UpdateChatSessionParams,
   UpdateChatSessionResponse,
@@ -25,7 +27,138 @@ const prefix = '/api/v1/dih';
 
 const prefixChatSession = '/api/v1/dih/chat-session';
 
-const normalizeAttachment = (item: any) => ({
+type RawAttachment = {
+  file_id?: string;
+  fileId?: string;
+  file_name?: string;
+  fileName?: string;
+  file_size?: number;
+  fileSize?: number;
+  content_type?: string;
+  contentType?: string;
+  kind?: string;
+  file_url?: string;
+  fileUrl?: string;
+  parse_status?: string;
+  parseStatus?: string;
+  message?: string;
+};
+
+type RawMessagePart = {
+  id?: string;
+  type?: string;
+  content?: string;
+  language?: string;
+  title?: string;
+  level?: string;
+  status?: string;
+  metadata?: Record<string, unknown>;
+};
+
+type RawMessage = {
+  id?: string;
+  sender?: string;
+  content?: string;
+  time?: string;
+  type?: string;
+  parts?: RawMessagePart[];
+  attachments?: RawAttachment[];
+  loading?: boolean;
+  is_error?: boolean;
+  isError?: boolean;
+  effective?: boolean;
+  iframe?: string;
+};
+
+type RawMcpApproval = Record<string, unknown> & {
+  request_id?: string;
+  requestId?: string;
+  tool_key?: string;
+  toolKey?: string;
+  tool_name?: string;
+  toolName?: string;
+  source_type?: string;
+  sourceType?: string;
+  server_name?: string;
+  serverName?: string;
+  description?: string;
+  channel?: string;
+  policy?: string;
+  approval_scope?: string;
+  approvalScope?: string;
+  status?: string;
+  arguments_summary?: string;
+  argumentsSummary?: string;
+  result_summary?: string;
+  resultSummary?: string;
+  error_summary?: string;
+  errorSummary?: string;
+  risk_level?: string;
+  riskLevel?: string;
+  create_time?: string;
+  createTime?: string;
+  expire_time?: string;
+  expireTime?: string;
+  finish_time?: string;
+  finishTime?: string;
+  duration_millis?: number;
+  durationMillis?: number;
+  decision_comment?: string;
+  decisionComment?: string;
+};
+
+type RawStreamEvent = {
+  event?: string;
+  content?: string;
+  message?: RawMessage | string;
+  data?: RawMcpApproval | Record<string, unknown>;
+};
+
+type RawSkill = {
+  id?: string;
+  name?: string;
+  description?: string;
+  version?: string;
+  author?: string;
+  agent_types?: string[];
+  agentTypes?: string[];
+  tags?: string[];
+  enabled?: boolean;
+  entry?: string;
+  path?: string;
+  update_time?: string;
+  updateTime?: string;
+};
+
+type RawAgentSkill = {
+  skill_id?: string;
+  skillId?: string;
+  agent_type?: string;
+  agentType?: string;
+  label?: string;
+  name?: string;
+  description?: string;
+  enabled?: boolean;
+  order?: number;
+  path?: string;
+  update_time?: string;
+  updateTime?: string;
+};
+
+type RawChatSession = {
+  id?: string;
+  session_id?: string;
+  title?: string;
+  type?: string;
+  message_list?: RawMessage[];
+  extra_data?: string;
+  deep_think?: boolean;
+  online_search?: boolean;
+  update_time?: string;
+  pin?: boolean;
+};
+
+const normalizeAttachment = (item: RawAttachment) => ({
   file_id: item?.file_id || item?.fileId || '',
   file_name: item?.file_name || item?.fileName || '',
   file_size: item?.file_size ?? item?.fileSize ?? 0,
@@ -36,7 +169,7 @@ const normalizeAttachment = (item: any) => ({
   message: item?.message || '',
 });
 
-const normalizeMessagePart = (item: any): ChatMessagePart => ({
+const normalizeMessagePart = (item: RawMessagePart): ChatMessagePart => ({
   id: item?.id || '',
   type: item?.type || 'markdown',
   content: item?.content || '',
@@ -47,9 +180,9 @@ const normalizeMessagePart = (item: any): ChatMessagePart => ({
   metadata: item?.metadata || {},
 });
 
-const normalizeMessage = (item: any): ChatMessage => ({
+const normalizeMessage = (item: RawMessage): ChatMessage => ({
   id: item?.id || '',
-  sender: item?.sender || 'ai',
+  sender: (item?.sender || 'ai') as ChatMessage['sender'],
   content: item?.content || '',
   time: item?.time || '',
   type: item?.type || 'text',
@@ -61,18 +194,45 @@ const normalizeMessage = (item: any): ChatMessage => ({
   iframe: item?.iframe,
 });
 
-const normalizeStreamEvent = (event: any): ChatStreamEvent => {
+const normalizeMcpApproval = (item: RawMcpApproval): McpApprovalData => ({
+  ...item,
+  requestId: item?.request_id || item?.requestId || '',
+  toolKey: item?.tool_key || item?.toolKey || '',
+  toolName: item?.tool_name || item?.toolName || '',
+  sourceType: item?.source_type || item?.sourceType || '',
+  serverName: item?.server_name || item?.serverName || '',
+  description: item?.description || '',
+  channel: item?.channel || '',
+  policy: item?.policy || '',
+  approvalScope: String(item?.approval_scope || item?.approvalScope || '').toLowerCase(),
+  status: String(item?.status || 'pending').toLowerCase(),
+  argumentsSummary: item?.arguments_summary || item?.argumentsSummary || '',
+  resultSummary: item?.result_summary || item?.resultSummary || '',
+  errorSummary: item?.error_summary || item?.errorSummary || '',
+  riskLevel: item?.risk_level || item?.riskLevel || 'warning',
+  createTime: item?.create_time || item?.createTime || '',
+  expireTime: item?.expire_time || item?.expireTime || '',
+  finishTime: item?.finish_time || item?.finishTime || '',
+  durationMillis: item?.duration_millis ?? item?.durationMillis,
+  decisionComment: item?.decision_comment || item?.decisionComment || '',
+});
+
+const normalizeStreamEvent = (event: RawStreamEvent): ChatStreamEvent => {
   if (event?.event === 'done' && event?.message && typeof event.message === 'object') {
     return {
       event: event.event,
       content: event.content,
       message: normalizeMessage(event.message),
+      data: event.data,
     };
   }
   return {
     event: event?.event || 'error',
     content: event?.content,
-    message: event?.message,
+    message: event?.message as ChatStreamEvent['message'],
+    data: event?.event === 'approval_required' || event?.event === 'approval_updated'
+      ? normalizeMcpApproval(event?.data || {})
+      : event?.data,
   };
 };
 
@@ -88,7 +248,7 @@ const parseStreamLine = (line: string): ChatStreamEvent => {
   }
 };
 
-const normalizeSkill = (item: any): SkillVo => ({
+const normalizeSkill = (item: RawSkill): SkillVo => ({
   id: item?.id || '',
   name: item?.name || '',
   description: item?.description || '',
@@ -102,7 +262,7 @@ const normalizeSkill = (item: any): SkillVo => ({
   updateTime: item?.update_time || item?.updateTime || '',
 });
 
-const normalizeAgentSkill = (item: any): AgentSkillVo => ({
+const normalizeAgentSkill = (item: RawAgentSkill): AgentSkillVo => ({
   skillId: item?.skill_id || item?.skillId || '',
   agentType: item?.agent_type || item?.agentType || '',
   label: item?.label || '',
@@ -112,6 +272,19 @@ const normalizeAgentSkill = (item: any): AgentSkillVo => ({
   order: item?.order ?? 0,
   path: item?.path || '',
   updateTime: item?.update_time || item?.updateTime || '',
+});
+
+const normalizeChatSession = (item: RawChatSession): ChatSession => ({
+  id: item.id || '',
+  sessionId: item.session_id || '',
+  title: item.title || '',
+  type: item.type || '',
+  messageList: (item.message_list || []).map(normalizeMessage),
+  extraData: item.extra_data || '',
+  deepThink: item.deep_think || false,
+  onlineSearch: item.online_search || false,
+  updateTime: item.update_time || '',
+  pin: item.pin || false,
 });
 
 export class DihService {
@@ -226,17 +399,26 @@ export class DihService {
     return request<string>(`${prefix}/chat/action-decision`, params, 'POST', { silent: true });
   }
 
+  static async decideMcpApproval(requestId: string, params: McpApprovalDecisionParams): Promise<McpApprovalData> {
+    const response = await request<McpApprovalData>(
+      `${prefix}/mcp/approvals/${encodeURIComponent(requestId)}/decision`,
+      params,
+      'POST',
+      { silent: true },
+    );
+    return normalizeMcpApproval(response);
+  }
+
   static async getModelList(): Promise<ModelInfo[]> {
-    const response = await request<Array<object>>(`${prefix}/model/list`, '', 'GET');
-    // 返回ModelInfo[]对象
-    return response.map((item) => ({
-      model: (item as any).model || '',
-      desc: (item as any).desc || '',
+    const response = await request<Array<{ model?: string; desc?: string }>>(`${prefix}/model/list`, '', 'GET');
+    return response.map(item => ({
+      model: item.model || '',
+      desc: item.desc || '',
     }));
   }
 
   static async getSkillList(params: SkillSearchParams = {}): Promise<PageRowsVo<SkillVo>> {
-    const response = await request<{ rows: object[]; total: number }>(`${prefix}/skills/list`, params, 'GET');
+    const response = await request<{ rows: RawSkill[]; total: number }>(`${prefix}/skills/list`, params, 'GET');
     return {
       rows: (response.rows || []).map(normalizeSkill),
       total: response.total || 0,
@@ -244,25 +426,13 @@ export class DihService {
   }
 
   static async getAgentSkills(enabled = true): Promise<AgentSkillVo[]> {
-    const response = await request<Array<object>>(`${prefix}/skills/agents`, { enabled }, 'GET');
+    const response = await request<RawAgentSkill[]>(`${prefix}/skills/agents`, { enabled }, 'GET');
     return response.map(normalizeAgentSkill);
   }
 
   static async getChatSessionForPin(): Promise<ChatSession[]> {
-    const response = await request<Array<object>>(`${prefixChatSession}/list/pin`, '', 'GET');
-    // 返回ChatSession[]对象
-    return response.map((item) => ({
-      id: (item as any).id || '',
-      sessionId: (item as any).session_id || '',
-      title: (item as any).title || '',
-      type: (item as any).type || '',
-      messageList: ((item as any).message_list || []).map(normalizeMessage),
-      extraData: (item as any).extra_data || '',
-      deepThink: (item as any).deep_think || false,
-      onlineSearch: (item as any).online_search || false,
-      updateTime: (item as any).update_time || '',
-      pin: (item as any).pin || false,
-    }));
+    const response = await request<RawChatSession[]>(`${prefixChatSession}/list/pin`, '', 'GET');
+    return response.map(normalizeChatSession);
   }
 
   static async getChatSessionPageList(params: ChatSessionPageParams): Promise<ChatSession[]> {
@@ -271,20 +441,8 @@ export class DihService {
       per_page: params.per_page ?? params.perPage ?? 10,
       perPage: params.perPage ?? params.per_page ?? 10,
     };
-    const response = await request<{ rows: object[] }>(`${prefixChatSession}/list`, requestParams, 'GET');
-    // 返回ChatSession[]对象
-    return response.rows.map((item) => ({
-      id: (item as any).id || '',
-      sessionId: (item as any).session_id || '',
-      title: (item as any).title || '',
-      type: (item as any).type || '',
-      messageList: ((item as any).message_list || []).map(normalizeMessage),
-      extraData: (item as any).extra_data || '',
-      deepThink: (item as any).deep_think || false,
-      onlineSearch: (item as any).online_search || false,
-      updateTime: (item as any).update_time || '',
-      pin: (item as any).pin || false,
-    }));
+    const response = await request<{ rows: RawChatSession[] }>(`${prefixChatSession}/list`, requestParams, 'GET');
+    return response.rows.map(normalizeChatSession);
   }
 
   static async updateChatSession(id: string, params: UpdateChatSessionParams): Promise<UpdateChatSessionResponse> {
@@ -296,18 +454,7 @@ export class DihService {
   }
 
   static async getChatSession(chatSessionId: string, params: GetChatSessionParams): Promise<ChatSession> {
-    const response = await request<Object>(`${prefixChatSession}/${chatSessionId}/session`, params, 'GET');
-    return {
-      id: (response as any).id || '',
-      sessionId: (response as any).session_id || '',
-      title: (response as any).title || '',
-      type: (response as any).type || '',
-      messageList: ((response as any).message_list || []).map(normalizeMessage),
-      extraData: (response as any).extra_data || '',
-      deepThink: (response as any).deep_think || false,
-      onlineSearch: (response as any).online_search || false,
-      updateTime: (response as any).update_time || '',
-      pin: (response as any).pin || false,
-    };
+    const response = await request<RawChatSession>(`${prefixChatSession}/${chatSessionId}/session`, params, 'GET');
+    return normalizeChatSession(response);
   }
 }

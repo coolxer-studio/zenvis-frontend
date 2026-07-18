@@ -1,4 +1,4 @@
-export type ChatMessagePartType = 'markdown' | 'code' | 'config' | 'report-document' | 'notice' | 'confirm' | 'info-steps' | 'analysis-decision' | 'data-access-decision' | 'metadata-config-record' | 'data-push-service-record' | 'visualization-chart-preview' | 'visualization-chart-record' | 'visualization-config-record' | 'dashboard-config-record' | 'menu-config-record' | 'prompt-suggestions' | 'chart' | 'thinking';
+export type ChatMessagePartType = 'markdown' | 'code' | 'config' | 'report-document' | 'notice' | 'confirm' | 'mcp-approval' | 'info-steps' | 'analysis-record' | 'analysis-decision' | 'data-access-decision' | 'metadata-config-record' | 'data-push-service-record' | 'visualization-chart-preview' | 'visualization-chart-record' | 'visualization-config-record' | 'dashboard-config-record' | 'menu-config-record' | 'policy-record' | 'prompt-suggestions' | 'chart' | 'thinking';
 
 export type ChatMessagePartStatus = 'pending' | 'approved' | 'rejected' | string;
 
@@ -44,10 +44,40 @@ export type ChatMessage = {
   iframe?: string
 };
 
+export type McpApprovalStatus = 'pending' | 'approved' | 'running' | 'succeeded' | 'failed'
+  | 'rejected' | 'denied' | 'expired' | 'cancelled' | string;
+
+export type McpApprovalDecision = 'approved' | 'approved_session' | 'rejected';
+export type McpApprovalScope = 'once' | 'session' | string;
+
+export type McpApprovalData = {
+  requestId: string;
+  toolKey?: string;
+  toolName?: string;
+  sourceType?: string;
+  serverName?: string;
+  description?: string;
+  channel?: string;
+  policy?: string;
+  approvalScope?: McpApprovalScope;
+  status?: McpApprovalStatus;
+  argumentsSummary?: string;
+  resultSummary?: string;
+  errorSummary?: string;
+  riskLevel?: string;
+  createTime?: string;
+  expireTime?: string;
+  finishTime?: string;
+  durationMillis?: number;
+  decisionComment?: string;
+  [key: string]: unknown;
+};
+
 export type ChatStreamEvent = {
   event: 'delta' | 'done' | 'error' | string;
   content?: string;
   message?: ChatMessage | string;
+  data?: McpApprovalData | Record<string, unknown>;
 };
 
 export type ChatSession = {
@@ -90,6 +120,63 @@ export type ReportArtifact = {
   status?: string;
   createdAt?: string;
   content?: string;
+};
+
+export type AnalysisStage = 'log_aggregation' | 'sandbox_analysis' | 'report_output' | string;
+
+export type AnalysisRecord = {
+  id?: string;
+  recordId?: string;
+  stage?: AnalysisStage;
+  status?: string;
+  title?: string;
+  content?: string;
+  startedAt?: string;
+  completedAt?: string;
+  alarm?: Record<string, unknown>;
+  evidenceCount?: number;
+  riskLevel?: string;
+  confidence?: number | string;
+  keyFindings?: unknown[];
+  recommendations?: unknown[];
+  sandboxTaskId?: string;
+  toolNames?: unknown[];
+  raw?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+export type AnalysisExtraData = {
+  records?: AnalysisRecord[];
+  aggregatedLogs?: Array<Record<string, unknown>>;
+  sandboxResults?: Array<Record<string, unknown>>;
+  conclusionTimeline?: Array<Record<string, unknown>>;
+};
+
+export type PolicyType = 'collection' | 'tagging' | 'disposal' | string;
+export type PolicyChangeMode = 'add' | 'modify' | string;
+export type PolicyValidationStatus = 'unverified' | 'success' | 'failed' | string;
+export type PolicyEffectiveStatus = 'yes' | 'no' | string;
+
+export type PolicyRecord = {
+  id?: string;
+  recordId?: string;
+  policyType?: PolicyType;
+  changeDescription?: string;
+  changeMode?: PolicyChangeMode;
+  configType?: string;
+  fileName?: string;
+  oldConfig?: unknown;
+  newConfig?: unknown;
+  validationStatus?: PolicyValidationStatus;
+  effectiveStatus?: PolicyEffectiveStatus;
+  trialResult?: unknown;
+  applyResult?: unknown;
+  updatedAt?: string;
+  [key: string]: unknown;
+};
+
+export type PolicyExtraData = {
+  records?: PolicyRecord[];
 };
 
 export type ModelInfo = {
@@ -171,6 +258,11 @@ export type ChatActionDecisionParams = {
   message_id: string;
   part_id: string;
   decision: 'approved' | 'rejected' | 'dispose' | 'ignore' | 'continue' | 'apply_config' | 'abandon' | 'revise' | 'submitted';
+};
+
+export type McpApprovalDecisionParams = {
+  decision: McpApprovalDecision;
+  comment?: string;
 };
 
 // 聊天会话分页列表参数

@@ -1,5 +1,5 @@
 import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router';
-import { hasLoginSession, setAuthToken } from '@u/auth-session';
+import { getAuthToken, hasLoginSession, setAuthToken } from '@u/auth-session';
 import layout_blank from '@c/layout/layout-blank.vue';
 import layout_header from '@c/layout/layout-header.vue';
 import layout_full from '@c/layout/layout-full.vue';
@@ -29,18 +29,6 @@ const basicRoutes: Array<RouteRecordRaw> = [
     ]
   },
   {
-    path: `/aggregate`,
-    component: layout_header,
-    redirect: `/aggregate/index`,
-    children: [
-      {
-        path: 'index',
-        component: () => import('@v/aggregate/index.vue'),
-        name: 'aggregate'
-      }
-    ]
-  },
-  {
     path: `/dashboard`,
     component: layout_full,
     redirect: `/dashboard/index`,
@@ -60,17 +48,6 @@ const basicRoutes: Array<RouteRecordRaw> = [
         path: 'index',
         component: () => import('@v/retrieval/index.vue'),
         name: 'retrieval'
-      }
-    ]
-  },
-  {
-    path: `/chatgpt`,
-    component: layout_header,
-    children: [
-      {
-        path: 'index',
-        component: () => import('@v/chatgpt/index.vue'),
-        name: 'chatgpt'
       }
     ]
   },
@@ -186,6 +163,17 @@ router.beforeEach(to => {
   const salt = firstQueryValue(to.query.salt);
   if (token) {
     setAuthToken(token, salt);
+    if (getAuthToken() === token) {
+      const query = { ...to.query };
+      delete query.token;
+      delete query.salt;
+      return {
+        path: to.path,
+        query,
+        hash: to.hash,
+        replace: true,
+      };
+    }
   }
 
   if (to.matched.length === 0) {

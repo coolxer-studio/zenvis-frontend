@@ -64,8 +64,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { DATA_ACCESS_RECORD_EVENT, useDihEventListener } from '../events'
+import type { DataAccessRecordEventDetail } from '../events'
 
 type ConsoleRecord = Record<string, unknown> & {
   id?: string
@@ -77,13 +79,6 @@ type ConsoleRecord = Record<string, unknown> & {
   taskId?: string
   description?: string
 }
-
-type DataAccessRecordEventDetail = {
-  metadataConfigs?: unknown[]
-  dataPushServices?: unknown[]
-}
-
-const DATA_ACCESS_RECORD_EVENT = 'dihDataAccessRecordsUpdated'
 
 const activeTab = ref('metadataConfigs')
 const metadataConfigs = ref<ConsoleRecord[]>([])
@@ -159,8 +154,8 @@ const openDataPushService = (record: ConsoleRecord) => {
   })
 }
 
-const handleRecordsUpdated = (event: Event) => {
-  const detail = (event as CustomEvent<DataAccessRecordEventDetail>).detail || {}
+const handleRecordsUpdated = (detail: DataAccessRecordEventDetail) => {
+  detail ||= {}
   metadataConfigs.value = asRecordList(detail.metadataConfigs)
   dataPushServices.value = asRecordList(detail.dataPushServices)
   if (!metadataConfigs.value.length && dataPushServices.value.length) {
@@ -168,13 +163,7 @@ const handleRecordsUpdated = (event: Event) => {
   }
 }
 
-onMounted(() => {
-  window.addEventListener(DATA_ACCESS_RECORD_EVENT, handleRecordsUpdated)
-})
-
-onUnmounted(() => {
-  window.removeEventListener(DATA_ACCESS_RECORD_EVENT, handleRecordsUpdated)
-})
+useDihEventListener(DATA_ACCESS_RECORD_EVENT, handleRecordsUpdated)
 </script>
 
 <style scoped>

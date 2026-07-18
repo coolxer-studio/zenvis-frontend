@@ -16,18 +16,18 @@
             @click.stop
           >
             <template #append>
-              <el-button @click="onSearch"><el-icon><Search /></el-icon></el-button>
+              <el-button><el-icon><Search /></el-icon></el-button>
             </template>
           </el-input>
 
           <div class="all-filter">筛选列</div>
           <el-checkbox-group v-model="state.selectedKeyCol" style="width: 100%" @click.stop @change="getSelect">
-            <div v-for="item in state.sourceColumns" style="height: 35px;line-height: 35px">
+            <div v-for="item in state.sourceColumns" :key="item.dataIndex" style="height: 35px;line-height: 35px">
               <template v-if="moreSearch">
-                <el-checkbox :value="(item as any).dataIndex" v-show="(item as any).title.indexOf(moreSearch) != -1">{{(item as any).title}}</el-checkbox>
+                <el-checkbox v-show="item.title.includes(moreSearch)" :value="item.dataIndex">{{ item.title }}</el-checkbox>
               </template>
               <template v-else>
-                <el-checkbox :value="(item as any).dataIndex">{{(item as any).title}}</el-checkbox>
+                <el-checkbox :value="item.dataIndex">{{ item.title }}</el-checkbox>
               </template>
             </div>
           </el-checkbox-group>
@@ -39,7 +39,7 @@
     </el-popover>
     <el-table
       :data="state.data"
-      :loading="state.loading"
+      v-loading="state.loading"
       :key="tableKey"
       border
       @sort-change="handleSortChange"
@@ -70,29 +70,25 @@
             </div>
           </template>
           <template #default="scope">
-            <div class="cell-style" :title="scope.row[item.dataIndex]">
+            <div class="cell-style" :title="cellTitle(scope.row[item.dataIndex])">
               <template v-if="item.type == 'json'">
                 <el-tooltip content="数据查看" placement="top">
                   <img class="json-svg" src="/src/assets/svg-icon/json.svg" @click="showData(scope.row[item.dataIndex])" alt="">
                 </el-tooltip>
               </template>
               <template v-else>
-                <template v-if="item.isLink">
-                  <template v-if="scope.row[item.dataIndex] && scope.row[item.dataIndex].length > 8">
-                    <span @click="goAggregate(item.dataIndex, scope.row[item.dataIndex])" class="dev-style">
-                      {{ scope.row[item.dataIndex].substr(0,4) }}...{{ scope.row[item.dataIndex].substr(scope.row[item.dataIndex].length-4,4) }}
-                    </span>
-                    <el-icon class="copy-outlined-ico" title="点击复制" @click.stop="touchCopy(scope.row[item.dataIndex])"><DocumentCopy /></el-icon>
-                  </template>
-                  <template v-else>
-                    <span @click="goAggregate(item.dataIndex, scope.row[item.dataIndex])" class="dev-style">
-                      {{ scope.row[item.dataIndex] }}
-                    </span>
-                  </template>
-                </template>
-                <template v-else>
-                  {{ scope.row[item.dataIndex] }}
-                </template>
+                <span
+                  v-if="resolveLink(item, scope.row)"
+                  class="cell-text dev-style"
+                  @click="openLink(item, scope.row)"
+                >{{ scope.row[item.dataIndex] }}</span>
+                <span v-else class="cell-text">{{ scope.row[item.dataIndex] }}</span>
+                <el-icon
+                  v-if="item.copyable && hasCopyableValue(scope.row[item.dataIndex])"
+                  class="copy-outlined-ico"
+                  title="点击复制"
+                  @click.stop="touchCopy(scope.row[item.dataIndex])"
+                ><DocumentCopy /></el-icon>
               </template>
             </div>
           </template>
@@ -119,161 +115,117 @@
 </template>
 
 <script setup lang="ts">
-  import {ElMessage, ElMessageBox} from 'element-plus';
-  import { ArrowDown, Search, Bottom, ArrowUp, DocumentCopy } from '@element-plus/icons-vue';
-  import {onBeforeUnmount, onMounted, ref, toRaw} from "vue";
-  import {useRouter} from "vue-router";
-  import useClipboard from 'vue-clipboard3'
-  import type { TDynamicTableParams, TTable } from '@/types/type-public';
+import { ElMessage } from 'element-plus';
+import { ArrowDown, Search, Bottom, ArrowUp, DocumentCopy } from '@element-plus/icons-vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
+import type {
+  RetrievalTableChange,
+  RetrievalTableColumn,
+  RetrievalTableState,
+  RetrievalTableSorter,
+} from '@/types/type-retrieval';
+import { resolveRetrievalLink } from '@/utils/retrieval-link';
+import { copyTextToClipboard } from '@/utils/clipboard';
 
-  type RetrievalTableState = Omit<TDynamicTableParams, 'sourceColumns' | 'selectedCol' | 'selectedKeyCol'> & Omit<TTable<any>, 'columns'> & {
-    sourceColumns: any[];
-    selectedCol: any[];
-    selectedKeyCol?: string[];
-    columns: any[];
-    loading?: boolean;
-  };
+const props = defineProps<{ state: RetrievalTableState }>();
+const emit = defineEmits<{
+  (event: 'on-display', value: { entity: string; attributeList: RetrievalTableColumn[] }): void;
+  (event: 'on-change', value: RetrievalTableChange): void;
+  (event: 'on-click', value: unknown): void;
+}>();
 
-  const props = withDefaults(defineProps<{
-    state?: RetrievalTableState;
-  }>(), {
-    state: () => ({
-      sourceColumns: [],
-      disabledTitles: [],
-      selectedCol: [],
-      selectedKeyCol: [],
-      columns: [],
-      data: [],
-      pagination: {
-        current: 1,
-        pageSize: 10,
-        total: 0,
-      },
-      loading: false,
-    }),
-  });
-  const router = useRouter();
-  const { toClipboard } = useClipboard()
-  const copy = async (val: string) => {
-    try{
-      await toClipboard(val)
-      ElMessage.success('已复制' + ': ' + val);
-    } catch (e) {
-      ElMessage.error('复制失败,请手动复制!');
-    }
-  }
-  const touchCopy = (val: unknown) => {
-    copy(String(val))
-  }
-  const emit = defineEmits({
-    'on-display': null,
-    'on-edit': null,
-    'on-del': null,
-    'on-change': null,
-    'on-down': null,
-    'on-resize': null,
-    'on-click': null,
-  });
-  const tableKey = ref<number>(0)
-  const colSelected = ref<any[]>([])
-  const colShow = ref<boolean>(false)
-  const moreSearch = ref<string>('')
-  
-  const getMinWidth = (title: string): number => {
-    const charCount = title.length
-    const baseWidth = 100
-    const charWidth = 18
-    const minWidth = baseWidth + charCount * charWidth
-    return Math.max(minWidth, 120)
-  }
-  const handleResizeColumn = (w: number, col: unknown) => {
-    emit('on-resize', {w, col});
-  }
+const tableKey = ref(0);
+const colShow = ref(false);
+const moreSearch = ref('');
 
-  const down = (id: number) => {
-    emit('on-down', id);
-  };
-const onSearch = () => {
-
+async function copy(value: string) {
+  const copied = await copyTextToClipboard(value);
+  if (copied) {
+    ElMessage.success('复制成功');
+  } else {
+    ElMessage.error('复制失败,请手动复制!');
+  }
 }
-  const showData = (val: unknown) => {
-    emit('on-click', val);
-  }
-  const del = (id: number) => {
-    ElMessageBox.confirm(
-      '删除业务场景后，关联任务信息不会删除',
-      '确认要删除此业务场景吗？',
-      {
-        confirmButtonText: '确认',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    ).then(() => {
-      emit('on-del', id);
-    }).catch(() => {
-    });
-  };
-  const getSelect = (val: string[]) => {
-    const displayCol = [] as any
-    props.state?.sourceColumns.map((e: any) => {
-      if (val.indexOf(e.dataIndex) != -1) {
-        displayCol.push(e)
-      }
-    })
 
-    emit('on-display', toRaw({entity: props.state?.entity, attributeList: displayCol}));
-    colShow.value = false
+function serializeCopyValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value !== null && typeof value === 'object') {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
   }
-  const goAggregate = (field: string, value: unknown) => {
-    const query = new URLSearchParams({
-      entity_name: props.state?.entity || '',
-      [field]: String(value),
-    });
-    window.open(`/#/aggregate/index?${query.toString()}`, '_blank', 'noopener,noreferrer')
-    return
-  }
-  const handleCurrentChange = (val: number) => {
-    emit('on-change', { pagination: { current: val } });
-  }
-  const handleSizeChange = (val: number) => {
-    emit('on-change', { pagination: { pageSize: val, current: 1 } });
-  }
-  const handleSortChange = (val: unknown) => {
-    emit('on-change', { sorter: val });
-  }
-  const handleDocumentClick = () => {
-    colShow.value = false
-  }
+  return String(value);
+}
 
-  onMounted(() => {
-    document.addEventListener('click', handleDocumentClick)
-  })
+function hasCopyableValue(value: unknown): boolean {
+  return value !== null && value !== undefined && value !== '';
+}
 
-  onBeforeUnmount(() => {
-    document.removeEventListener('click', handleDocumentClick)
-  })
-  const swapArray = (arr: any[], index1: number, index2: number) => {
-    arr[index1] = arr.splice(index2, 1, arr[index1])[0];
-    return arr;
+function touchCopy(value: unknown) {
+  void copy(serializeCopyValue(value));
+}
+
+function cellTitle(value: unknown): string {
+  return hasCopyableValue(value) ? serializeCopyValue(value) : '';
+}
+
+function getMinWidth(title: string): number {
+  return Math.max(100 + title.length * 18, 120);
+}
+
+function showData(value: unknown) {
+  emit('on-click', value);
+}
+
+function getSelect(value: string[]) {
+  if (!value.length) {
+    ElMessage.warning('至少保留一个展示字段');
+    props.state.selectedKeyCol = props.state.selectedCol.map(column => column.dataIndex);
+    return;
   }
-  const fixedOption = (str: string | boolean, item: any, index: number) => {
-    item.fixed = str
-    let index1 = 0
-    let index2 = 0
-    if (str == 'left') {
-      index1 = index
-    }
-    if (str == 'right') {
-      index1 = index
-      index2 = props.state?.selectedCol.length - 1
-    }
-    if (str == '') {
-      index1 = index
-      index2 = item.firstIndex
-    }
-    swapArray(props.state?.selectedCol, index1, index2 )
-    tableKey.value++
-  }
+  if (!props.state.entity) return;
+  const selected = new Set(value);
+  const displayColumns = props.state.sourceColumns.filter(column => selected.has(column.dataIndex));
+  emit('on-display', { entity: props.state.entity, attributeList: displayColumns });
+  colShow.value = false;
+}
+
+function resolveLink(column: RetrievalTableColumn, row: Record<string, unknown>) {
+  return resolveRetrievalLink(column.linkTemplate, row);
+}
+
+function openLink(column: RetrievalTableColumn, row: Record<string, unknown>) {
+  const link = resolveLink(column, row);
+  if (link) window.open(link, '_blank', 'noopener,noreferrer');
+}
+
+function handleCurrentChange(value: number) {
+  emit('on-change', { pagination: { current: value } });
+}
+
+function handleSizeChange(value: number) {
+  emit('on-change', { pagination: { pageSize: value, current: 1 } });
+}
+
+function handleSortChange(value: RetrievalTableSorter) {
+  emit('on-change', { sorter: value });
+}
+
+function handleDocumentClick() {
+  colShow.value = false;
+}
+
+function fixedOption(fixed: RetrievalTableColumn['fixed'], item: RetrievalTableColumn, _index: number) {
+  item.fixed = fixed;
+  const rank = (column: RetrievalTableColumn) => column.fixed === 'left' ? 0 : column.fixed === 'right' ? 2 : 1;
+  props.state.selectedCol.sort((left, right) => rank(left) - rank(right) || left.firstIndex - right.firstIndex);
+  tableKey.value++;
+}
+
+onMounted(() => document.addEventListener('click', handleDocumentClick));
+onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick));
 </script>
 
 <style lang="scss" scoped>
@@ -285,6 +237,14 @@ const onSearch = () => {
     margin-top: 10px;
   }
   .cell-style{
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .cell-text{
+    flex: 1 1 auto;
+    min-width: 0;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -299,6 +259,7 @@ const onSearch = () => {
     font-size: 18px;
     color: #34a062;
     margin-left: 10px;
+    flex: 0 0 auto;
   }
   .header-cell {
     display: flex;

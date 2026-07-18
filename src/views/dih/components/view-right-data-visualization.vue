@@ -93,13 +93,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { CopyDocument, Document, View } from '@element-plus/icons-vue'
 import DOMPurify from 'dompurify'
 import { copyTextToClipboard } from '@/utils/clipboard'
 import { PolicyService } from '@/service/api'
+import { DATA_VISUALIZATION_RECORD_EVENT, useDihEventListener } from '../events'
+import type { DataVisualizationRecordEventDetail } from '../events'
 
 type VisualizationRecord = Record<string, unknown> & {
   id?: string
@@ -122,15 +124,6 @@ type VisualizationRecord = Record<string, unknown> & {
   api?: string
   htmlPath?: string
 }
-
-type DataVisualizationRecordEventDetail = {
-  chartLibrary?: unknown[]
-  visualizationConfigs?: unknown[]
-  dashboardConfigs?: unknown[]
-  menuConfigs?: unknown[]
-}
-
-const DATA_VISUALIZATION_RECORD_EVENT = 'dihDataVisualizationRecordsUpdated'
 
 const activeTab = ref('chartLibrary')
 const chartLibrary = ref<VisualizationRecord[]>([])
@@ -542,7 +535,7 @@ const renderChartPreview = (schema: Record<string, unknown>) => {
   return `
     <section class="dv-preview-chart">
       <div class="dv-preview-panel-title">${escapeHtml(title.text || schema.title || '图表预览')}</div>
-      <div class="dv-preview-api">${escapeHtml(schema.api || '/zenvis/api/v1/retrieval/aggregate/trend')}</div>
+      <div class="dv-preview-api">${escapeHtml(schema.api || '/zenvis/api/v1/entity/trend')}</div>
       <div class="dv-preview-bars">
         <span style="height:42%"></span>
         <span style="height:58%"></span>
@@ -607,8 +600,8 @@ const copyRecord = async (record: VisualizationRecord) => {
   }
 }
 
-const handleRecordsUpdated = (event: Event) => {
-  const detail = (event as CustomEvent<DataVisualizationRecordEventDetail>).detail || {}
+const handleRecordsUpdated = (detail: DataVisualizationRecordEventDetail) => {
+  detail ||= {}
   chartLibrary.value = asRecordList(detail.chartLibrary)
   visualizationConfigs.value = asRecordList(detail.visualizationConfigs)
   dashboardConfigs.value = asRecordList(detail.dashboardConfigs)
@@ -619,13 +612,7 @@ const handleRecordsUpdated = (event: Event) => {
   }
 }
 
-onMounted(() => {
-  window.addEventListener(DATA_VISUALIZATION_RECORD_EVENT, handleRecordsUpdated)
-})
-
-onUnmounted(() => {
-  window.removeEventListener(DATA_VISUALIZATION_RECORD_EVENT, handleRecordsUpdated)
-})
+useDihEventListener(DATA_VISUALIZATION_RECORD_EVENT, handleRecordsUpdated)
 </script>
 
 <style scoped>
