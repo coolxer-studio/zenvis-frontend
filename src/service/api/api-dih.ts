@@ -6,9 +6,11 @@ import {
   SuggestParams,
   ChatParams,
   ChatMessage,
-  ChatMessagePart,
   ChatStreamEvent,
   ChatActionDecisionParams,
+  WorkflowActionParams,
+  WorkflowActionResult,
+  WorkflowTelemetryParams,
   McpApprovalData,
   McpApprovalDecisionParams,
   ChatSessionPageParams,
@@ -17,11 +19,24 @@ import {
   DeleteChatSessionResponse,
   GetChatSessionParams,
   AgentSkillVo,
+  ChatSkillEntryVo,
   PageRowsVo,
   SkillSearchParams,
   SkillVo,
+  ReportArchiveParams,
+  ReportArtifact,
+  ReportArtifactRenameParams,
+  ReportDocument,
+  ReportDocumentSaveParams,
+  ReportRevision,
+  ReportSourceRef,
+  ReportWorkspace,
 } from '@/types/type-dih';
 import { withBaseUrl } from '@u/url';
+import {
+  normalizeChatMessagePart,
+  type RawChatMessagePart,
+} from '@/service/normalizers/chat-message';
 
 const prefix = '/api/v1/dih';
 
@@ -44,24 +59,13 @@ type RawAttachment = {
   message?: string;
 };
 
-type RawMessagePart = {
-  id?: string;
-  type?: string;
-  content?: string;
-  language?: string;
-  title?: string;
-  level?: string;
-  status?: string;
-  metadata?: Record<string, unknown>;
-};
-
 type RawMessage = {
   id?: string;
   sender?: string;
   content?: string;
   time?: string;
   type?: string;
-  parts?: RawMessagePart[];
+  parts?: RawChatMessagePart[];
   attachments?: RawAttachment[];
   loading?: boolean;
   is_error?: boolean;
@@ -86,7 +90,14 @@ type RawMcpApproval = Record<string, unknown> & {
   policy?: string;
   approval_scope?: string;
   approvalScope?: string;
+  session_approval_allowed?: boolean;
+  sessionApprovalAllowed?: boolean;
   status?: string;
+  arguments?: string;
+  result?: string;
+  result_length?: number;
+  resultLength?: number;
+  // 兼容历史聊天消息和滚动升级期间的旧响应。
   arguments_summary?: string;
   argumentsSummary?: string;
   result_summary?: string;
@@ -145,6 +156,19 @@ type RawAgentSkill = {
   updateTime?: string;
 };
 
+type RawChatSkillEntry = {
+  skill_id?: string;
+  skillId?: string;
+  chat_type?: string;
+  chatType?: string;
+  agent_type?: string;
+  agentType?: string;
+  label?: string;
+  description?: string;
+  icon?: string;
+  order?: number;
+};
+
 type RawChatSession = {
   id?: string;
   session_id?: string;
@@ -169,25 +193,16 @@ const normalizeAttachment = (item: RawAttachment) => ({
   message: item?.message || '',
 });
 
-const normalizeMessagePart = (item: RawMessagePart): ChatMessagePart => ({
-  id: item?.id || '',
-  type: item?.type || 'markdown',
-  content: item?.content || '',
-  language: item?.language || '',
-  title: item?.title || '',
-  level: item?.level || '',
-  status: item?.status || '',
-  metadata: item?.metadata || {},
-});
-
 const normalizeMessage = (item: RawMessage): ChatMessage => ({
   id: item?.id || '',
   sender: (item?.sender || 'ai') as ChatMessage['sender'],
   content: item?.content || '',
   time: item?.time || '',
   type: item?.type || 'text',
-  parts: Array.isArray(item?.parts) ? item.parts.map(normalizeMessagePart) : undefined,
-  attachments: Array.isArray(item?.attachments) ? item.attachments.map(normalizeAttachment) : undefined,
+  parts: Array.isArray(item?.parts) ? item.parts.map(normalizeChatMessagePart) : undefined,
+  attachments: Array.isArray(item?.attachments)
+    ? item.attachments.map(normalizeAttachment)
+    : undefined,
   loading: item?.loading || false,
   isError: item?.is_error ?? item?.isError,
   effective: item?.effective,
@@ -205,9 +220,12 @@ const normalizeMcpApproval = (item: RawMcpApproval): McpApprovalData => ({
   channel: item?.channel || '',
   policy: item?.policy || '',
   approvalScope: String(item?.approval_scope || item?.approvalScope || '').toLowerCase(),
+  sessionApprovalAllowed:
+    item?.session_approval_allowed ?? item?.sessionApprovalAllowed ?? true,
   status: String(item?.status || 'pending').toLowerCase(),
-  argumentsSummary: item?.arguments_summary || item?.argumentsSummary || '',
-  resultSummary: item?.result_summary || item?.resultSummary || '',
+  arguments: item?.arguments ?? item?.arguments_summary ?? item?.argumentsSummary ?? '',
+  result: item?.result ?? item?.result_summary ?? item?.resultSummary ?? '',
+  resultLength: item?.result_length ?? item?.resultLength,
   errorSummary: item?.error_summary || item?.errorSummary || '',
   riskLevel: item?.risk_level || item?.riskLevel || 'warning',
   createTime: item?.create_time || item?.createTime || '',
@@ -230,9 +248,10 @@ const normalizeStreamEvent = (event: RawStreamEvent): ChatStreamEvent => {
     event: event?.event || 'error',
     content: event?.content,
     message: event?.message as ChatStreamEvent['message'],
-    data: event?.event === 'approval_required' || event?.event === 'approval_updated'
-      ? normalizeMcpApproval(event?.data || {})
-      : event?.data,
+    data:
+      event?.event === 'approval_required' || event?.event === 'approval_updated'
+        ? normalizeMcpApproval(event?.data || {})
+        : event?.data,
   };
 };
 
@@ -274,6 +293,16 @@ const normalizeAgentSkill = (item: RawAgentSkill): AgentSkillVo => ({
   updateTime: item?.update_time || item?.updateTime || '',
 });
 
+const normalizeChatSkillEntry = (item: RawChatSkillEntry): ChatSkillEntryVo => ({
+  skillId: item?.skill_id || item?.skillId || '',
+  chatType: item?.chat_type || item?.chatType || '',
+  agentType: item?.agent_type || item?.agentType || '',
+  label: item?.label || '',
+  description: item?.description || '',
+  icon: item?.icon || 'magic-stick',
+  order: item?.order ?? 1000,
+});
+
 const normalizeChatSession = (item: RawChatSession): ChatSession => ({
   id: item.id || '',
   sessionId: item.session_id || '',
@@ -286,6 +315,73 @@ const normalizeChatSession = (item: RawChatSession): ChatSession => ({
   updateTime: item.update_time || '',
   pin: item.pin || false,
 });
+
+const normalizeReportDocument = (
+  item: Record<string, unknown> = {},
+): ReportDocument => ({
+  ...item,
+  id: String(item.id || item.document_id || item.documentId || ''),
+  documentId: String(item.document_id || item.documentId || item.id || ''),
+  title: String(item.title || item.name || ''),
+  name: String(item.name || item.title || ''),
+  format: String(item.format || 'markdown'),
+  revision: Number(item.revision || 0),
+  version: String(item.version || ''),
+  status: String(item.status || ''),
+  source: String(item.source || ''),
+  updatedAt: String(item.updated_at || item.updatedAt || ''),
+  content: String(item.content || ''),
+  contentHash: String(item.content_hash || item.contentHash || ''),
+  outline: Array.isArray(item.outline) ? item.outline as Array<Record<string, unknown>> : [],
+  sourceRefs: Array.isArray(item.source_refs || item.sourceRefs)
+    ? (item.source_refs || item.sourceRefs) as ReportDocument['sourceRefs']
+    : [],
+  sourceAttachments: Array.isArray(item.source_attachments || item.sourceAttachments)
+    ? (item.source_attachments || item.sourceAttachments) as Array<Record<string, unknown>>
+    : [],
+});
+
+const normalizeReportArtifact = (
+  item: Record<string, unknown> = {},
+): ReportArtifact => ({
+  ...normalizeReportDocument(item),
+  artifactId: String(item.artifact_id || item.artifactId || item.id || ''),
+  createdAt: String(item.created_at || item.createdAt || ''),
+});
+
+const normalizeReportRevision = (
+  item: Record<string, unknown> = {},
+): ReportRevision => ({
+  revision: Number(item.revision || 0),
+  version: String(item.version || ''),
+  title: String(item.title || ''),
+  format: String(item.format || ''),
+  contentHash: String(item.content_hash || item.contentHash || ''),
+  createdAt: String(item.created_at || item.createdAt || ''),
+  sourceRefs: Array.isArray(item.source_refs || item.sourceRefs)
+    ? (item.source_refs || item.sourceRefs) as ReportRevision['sourceRefs']
+    : [],
+});
+
+const normalizeReportWorkspace = (
+  item: Record<string, unknown> = {},
+): ReportWorkspace => {
+  const current = item.current_document || item.currentDocument;
+  const revisions = item.revisions;
+  const artifacts = item.artifacts;
+  return {
+    currentDocument: current && typeof current === 'object'
+      ? normalizeReportDocument(current as Record<string, unknown>)
+      : undefined,
+    revisions: Array.isArray(revisions)
+      ? revisions.map(value => normalizeReportRevision(value as Record<string, unknown>))
+      : [],
+    artifacts: Array.isArray(artifacts)
+      ? artifacts.map(value => normalizeReportArtifact(value as Record<string, unknown>))
+      : [],
+    extraData: String(item.extra_data || item.extraData || ''),
+  };
+};
 
 export class DihService {
   /**
@@ -399,7 +495,40 @@ export class DihService {
     return request<string>(`${prefix}/chat/action-decision`, params, 'POST', { silent: true });
   }
 
-  static async decideMcpApproval(requestId: string, params: McpApprovalDecisionParams): Promise<McpApprovalData> {
+  static async workflowAction(params: WorkflowActionParams): Promise<WorkflowActionResult> {
+    const response = await request<Record<string, unknown>>(
+      `${prefix}/chat/workflow/action`,
+      params,
+      'POST',
+      { silent: true },
+    );
+    const continuation = response.continuation && typeof response.continuation === 'object'
+      ? response.continuation as WorkflowActionResult['continuation']
+      : {};
+    return {
+      accepted: Boolean(response.accepted),
+      workflowId: String(response.workflow_id || response.workflowId || ''),
+      state: String(response.state || ''),
+      partStatus: String(response.part_status || response.partStatus || ''),
+      continuation,
+      retryable: Boolean(response.retryable),
+      extraData: String(response.extra_data || response.extraData || ''),
+    };
+  }
+
+  static async workflowTelemetry(params: WorkflowTelemetryParams): Promise<string> {
+    return request<string>(
+      `${prefix}/chat/workflow/telemetry`,
+      params,
+      'POST',
+      { silent: true },
+    );
+  }
+
+  static async decideMcpApproval(
+    requestId: string,
+    params: McpApprovalDecisionParams,
+  ): Promise<McpApprovalData> {
     const response = await request<McpApprovalData>(
       `${prefix}/mcp/approvals/${encodeURIComponent(requestId)}/decision`,
       params,
@@ -410,7 +539,11 @@ export class DihService {
   }
 
   static async getModelList(): Promise<ModelInfo[]> {
-    const response = await request<Array<{ model?: string; desc?: string }>>(`${prefix}/model/list`, '', 'GET');
+    const response = await request<Array<{ model?: string; desc?: string }>>(
+      `${prefix}/model/list`,
+      '',
+      'GET',
+    );
     return response.map(item => ({
       model: item.model || '',
       desc: item.desc || '',
@@ -418,7 +551,11 @@ export class DihService {
   }
 
   static async getSkillList(params: SkillSearchParams = {}): Promise<PageRowsVo<SkillVo>> {
-    const response = await request<{ rows: RawSkill[]; total: number }>(`${prefix}/skills/list`, params, 'GET');
+    const response = await request<{ rows: RawSkill[]; total: number }>(
+      `${prefix}/skills/list`,
+      params,
+      'GET',
+    );
     return {
       rows: (response.rows || []).map(normalizeSkill),
       total: response.total || 0,
@@ -428,6 +565,15 @@ export class DihService {
   static async getAgentSkills(enabled = true): Promise<AgentSkillVo[]> {
     const response = await request<RawAgentSkill[]>(`${prefix}/skills/agents`, { enabled }, 'GET');
     return response.map(normalizeAgentSkill);
+  }
+
+  static async getChatSkillEntries(enabled = true): Promise<ChatSkillEntryVo[]> {
+    const response = await request<RawChatSkillEntry[]>(
+      `${prefix}/skills/chat-entries`,
+      { enabled },
+      'GET',
+    );
+    return response.map(normalizeChatSkillEntry);
   }
 
   static async getChatSessionForPin(): Promise<ChatSession[]> {
@@ -441,20 +587,122 @@ export class DihService {
       per_page: params.per_page ?? params.perPage ?? 10,
       perPage: params.perPage ?? params.per_page ?? 10,
     };
-    const response = await request<{ rows: RawChatSession[] }>(`${prefixChatSession}/list`, requestParams, 'GET');
+    const response = await request<{ rows: RawChatSession[] }>(
+      `${prefixChatSession}/list`,
+      requestParams,
+      'GET',
+    );
     return response.rows.map(normalizeChatSession);
   }
 
-  static async updateChatSession(id: string, params: UpdateChatSessionParams): Promise<UpdateChatSessionResponse> {
+  static async updateChatSession(
+    id: string,
+    params: UpdateChatSessionParams,
+  ): Promise<UpdateChatSessionResponse> {
     return request<UpdateChatSessionResponse>(`${prefixChatSession}/${id}/update`, params);
+  }
+
+  static async getReportWorkspace(sessionRecordId: string): Promise<ReportWorkspace> {
+    const response = await request<Record<string, unknown>>(
+      `${prefixChatSession}/${sessionRecordId}/report`,
+      {},
+      'GET',
+      { silent: true },
+    );
+    return normalizeReportWorkspace(response);
+  }
+
+  static async getReportMaterials(sessionRecordId: string): Promise<ReportSourceRef[]> {
+    const response = await request<Array<Record<string, unknown>>>(
+      `${prefixChatSession}/${sessionRecordId}/report/materials`,
+      {},
+      'GET',
+      { silent: true },
+    );
+    return Array.isArray(response) ? response as ReportSourceRef[] : [];
+  }
+
+  static async saveReportDocument(
+    sessionRecordId: string,
+    params: ReportDocumentSaveParams,
+  ): Promise<ReportWorkspace> {
+    const response = await request<Record<string, unknown>>(
+      `${prefixChatSession}/${sessionRecordId}/report/save`,
+      params,
+      'POST',
+      { silent: true },
+    );
+    return normalizeReportWorkspace(response);
+  }
+
+  static async archiveReportDocument(
+    sessionRecordId: string,
+    params: ReportArchiveParams,
+  ): Promise<ReportWorkspace> {
+    const response = await request<Record<string, unknown>>(
+      `${prefixChatSession}/${sessionRecordId}/report/archive`,
+      params,
+      'POST',
+      { silent: true },
+    );
+    return normalizeReportWorkspace(response);
+  }
+
+  static async restoreReportArtifact(
+    sessionRecordId: string,
+    artifactId: string,
+    params: ReportArchiveParams,
+  ): Promise<ReportWorkspace> {
+    const response = await request<Record<string, unknown>>(
+      `${prefixChatSession}/${sessionRecordId}/report/artifacts/${encodeURIComponent(artifactId)}/restore`,
+      params,
+      'POST',
+      { silent: true },
+    );
+    return normalizeReportWorkspace(response);
+  }
+
+  static async renameReportArtifact(
+    sessionRecordId: string,
+    artifactId: string,
+    params: ReportArtifactRenameParams,
+  ): Promise<ReportWorkspace> {
+    const response = await request<Record<string, unknown>>(
+      `${prefixChatSession}/${sessionRecordId}/report/artifacts/${encodeURIComponent(artifactId)}/rename`,
+      params,
+      'POST',
+      { silent: true },
+    );
+    return normalizeReportWorkspace(response);
+  }
+
+  static async deleteReportArtifact(
+    sessionRecordId: string,
+    artifactId: string,
+    baseRevision: number,
+  ): Promise<ReportWorkspace> {
+    const response = await request<Record<string, unknown>>(
+      `${prefixChatSession}/${sessionRecordId}/report/artifacts/${encodeURIComponent(artifactId)}?base_revision=${baseRevision}`,
+      {},
+      'DELETE',
+      { silent: true },
+    );
+    return normalizeReportWorkspace(response);
   }
 
   static async deleteChatSession(id: string): Promise<DeleteChatSessionResponse> {
     return request<DeleteChatSessionResponse>(`${prefixChatSession}/${id}`, '', 'DELETE');
   }
 
-  static async getChatSession(chatSessionId: string, params: GetChatSessionParams): Promise<ChatSession> {
-    const response = await request<RawChatSession>(`${prefixChatSession}/${chatSessionId}/session`, params, 'GET');
+  static async getChatSession(
+    chatSessionId: string,
+    params: GetChatSessionParams,
+  ): Promise<ChatSession> {
+    const response = await request<RawChatSession>(
+      `${prefixChatSession}/${chatSessionId}/session`,
+      params,
+      'GET',
+    );
     return normalizeChatSession(response);
   }
 }

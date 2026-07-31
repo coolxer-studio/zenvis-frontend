@@ -5,7 +5,7 @@
       <el-icon v-if="drawerVisible"><ArrowUp /></el-icon>
       <el-icon v-else><ArrowDown /></el-icon>
     </div>
-    
+
     <!-- 三个面板 -->
     <div class="panels-container">
       <el-splitter direction="horizontal">
@@ -13,92 +13,144 @@
           <ViewLeft />
         </el-splitter-panel>
         <el-splitter-panel collapsible :size="50" min="20">
-          <ViewCenter :suggestions="mySuggestions" />
+          <ViewCenter
+            :suggestions="mySuggestions"
+            :skill-entry-unavailable="skillEntryUnavailable"
+          />
         </el-splitter-panel>
         <el-splitter-panel v-if="showRightPanel" collapsible :size="30" min="20">
-          <ViewRightDataVisualization v-if="route.query.type && route.query.type === 'agent_data_visualization'" />
-          <ViewRightAnalysis v-if="route.query.type && route.query.type === 'agent_analysis'" />
-          <ViewRightDispose v-if="route.query.type && route.query.type === 'agent_dispose'" />
-          <ViewRightDataAccess v-if="route.query.type && route.query.type === 'agent_data_access'" />
-          <ViewRightReport v-if="route.query.type && route.query.type === 'agent_report'" />
+          <ViewRightDataVisualization
+            v-if="activeAgentType === 'agent_data_visualization'"
+          />
+          <ViewRightDataAnalysis v-if="activeAgentType === 'agent_data_analysis'" />
+          <ViewRightConfigManagement v-if="activeAgentType === 'agent_config_management'" />
+          <ViewRightDataAccess
+            v-if="activeAgentType === 'agent_data_access'"
+          />
+          <ViewRightReport v-if="activeAgentType === 'agent_report'" />
         </el-splitter-panel>
       </el-splitter>
     </div>
-    
+
     <!-- 自定义下拉抽屉 -->
     <div class="custom-drawer" :class="{ 'drawer-open': drawerVisible }">
-      <ViewDrawer @close="toggleDrawer" />
+      <ViewDrawer :visible="drawerVisible" @close="toggleDrawer" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import ViewLeft from './components/view-left.vue'
-import ViewCenter from './components/view-center.vue'
-import ViewRightDataVisualization from './components/view-right-data-visualization.vue'
-import ViewRightAnalysis from './components/view-right-analysis.vue'
-import ViewRightDispose from './components/view-right-dispose.vue'
-import ViewRightDataAccess from './components/view-right-data-access.vue'
-import ViewRightReport from './components/view-right-report.vue'
+import ViewLeft from './components/view-left.vue';
+import ViewCenter from './components/view-center.vue';
+import ViewRightDataVisualization from './components/view-right-data-visualization.vue';
+import ViewRightDataAnalysis from './components/view-right-data-analysis.vue';
+import ViewRightConfigManagement from './components/view-right-config-management.vue';
+import ViewRightDataAccess from './components/view-right-data-access.vue';
+import ViewRightReport from './components/view-right-report.vue';
 
-import ViewDrawer from './components/view-drawer.vue'
-import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import ViewDrawer from './components/view-drawer.vue';
+import { computed, onActivated, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import {
-  ArrowDown, ArrowUp, Connection, DataAnalysis, Document, Monitor, Operation
-} from '@element-plus/icons-vue'
-import { DihService } from '@/service/api'
-import type { AgentSkillVo } from '@/types/type-dih'
+  ArrowDown,
+  ArrowUp,
+  Connection,
+  DataAnalysis,
+  Document,
+  MagicStick,
+  Monitor,
+  Operation,
+} from '@element-plus/icons-vue';
+import { DihService } from '@/service/api';
+import type { ChatSkillEntryVo } from '@/types/type-dih';
 
-const route = useRoute()
+const route = useRoute();
 
 // 抽屉显示状态
-const drawerVisible = ref(false)
+const drawerVisible = ref(false);
 
 // 切换抽屉显示/隐藏
 const toggleDrawer = () => {
-  drawerVisible.value = !drawerVisible.value
-}
+  drawerVisible.value = !drawerVisible.value;
+};
 
 // 定义建议接口
 interface Suggestion {
-  type: string
-  label: string
-  icon: any
+  type: string;
+  agentType: string;
+  label: string;
+  icon: any;
 }
 
 const agentIconMap: Record<string, any> = {
   agent_data_access: Connection,
   agent_data_visualization: Monitor,
-  agent_analysis: DataAnalysis,
-  agent_dispose: Operation,
+  agent_data_analysis: DataAnalysis,
+  agent_config_management: Operation,
   agent_report: Document,
-}
+};
 
-const mySuggestions = ref<Suggestion[]>([])
-const rightPanelTypes = computed(() => mySuggestions.value.map(item => item.type))
-const showRightPanel = computed(() => rightPanelTypes.value.includes(String(route.query.type || '')))
+const configuredIconMap: Record<string, any> = {
+  connection: Connection,
+  monitor: Monitor,
+  'data-analysis': DataAnalysis,
+  operation: Operation,
+  document: Document,
+  'magic-stick': MagicStick,
+};
 
-const toSuggestion = (agentSkill: AgentSkillVo): Suggestion => ({
-  type: agentSkill.agentType,
-  label: agentSkill.label || agentSkill.name || agentSkill.agentType,
-  icon: agentIconMap[agentSkill.agentType] || Monitor,
-})
-
-const loadAgentSkills = async () => {
-  try {
-    const agentSkills = await DihService.getAgentSkills(true)
-    mySuggestions.value = agentSkills.map(toSuggestion)
-  } catch (error) {
-    console.error('获取内置智能体 Skill 列表失败:', error)
-    mySuggestions.value = []
+const mySuggestions = ref<Suggestion[]>([]);
+const entriesLoaded = ref(false);
+const routeChatType = computed(() => String(route.query.type || 'ask'));
+const activeSuggestion = computed(() =>
+  mySuggestions.value.find(item => item.type === routeChatType.value),
+);
+const activeAgentType = computed(() => {
+  if (activeSuggestion.value?.agentType) {
+    return activeSuggestion.value.agentType;
   }
-}
+  return agentIconMap[routeChatType.value] ? routeChatType.value : '';
+});
+const showRightPanel = computed(() => Boolean(agentIconMap[activeAgentType.value]));
+const skillEntryUnavailable = computed(() =>
+  entriesLoaded.value
+  && routeChatType.value.startsWith('skill:')
+  && !activeSuggestion.value,
+);
+
+const toSuggestion = (entry: ChatSkillEntryVo): Suggestion => ({
+  type: entry.chatType,
+  agentType: entry.agentType,
+  label: entry.label || entry.skillId,
+  icon: configuredIconMap[entry.icon] || agentIconMap[entry.agentType] || MagicStick,
+});
+
+const loadChatSkillEntries = async () => {
+  try {
+    const entries = await DihService.getChatSkillEntries(true);
+    mySuggestions.value = entries.map(toSuggestion);
+    entriesLoaded.value = true;
+  } catch (error) {
+    console.error('获取 Skill 聊天入口失败:', error);
+  }
+};
+
+const handleWindowFocus = () => {
+  void loadChatSkillEntries();
+};
 
 onMounted(() => {
-  loadAgentSkills()
-})
+  void loadChatSkillEntries();
+  window.addEventListener('focus', handleWindowFocus);
+});
 
+onActivated(() => {
+  void loadChatSkillEntries();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('focus', handleWindowFocus);
+});
 </script>
 
 <style scoped>

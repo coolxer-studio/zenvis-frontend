@@ -26,7 +26,7 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="188" class-name="record-actions-column">
+              <el-table-column label="操作" width="228" class-name="record-actions-column">
                 <template #default="scope">
                   <div class="record-actions">
                     <el-tooltip v-if="canViewConfig(section.name, scope.row)" :content="configButtonTip(section.name)" placement="top">
@@ -37,12 +37,30 @@
                         @click.stop="viewRecordConfig(section.name, scope.row)"
                       />
                     </el-tooltip>
-                    <el-tooltip v-if="canPreview(section.name, scope.row)" content="预览视图效果" placement="top">
+                    <el-tooltip
+                      v-if="canPreview(section.name, scope.row)"
+                      :content="previewButtonTip(section.name, scope.row)"
+                      placement="top"
+                    >
                       <el-button
                         size="small"
                         :icon="View"
                         circle
                         @click.stop="previewRecord(section.name, scope.row)"
+                      />
+                    </el-tooltip>
+                    <el-tooltip
+                      v-if="section.name === 'chartLibrary'"
+                      :content="canRefreshChart(scope.row) ? '按原查询参数刷新真实快照' : '历史记录缺少安全查询参数，不能刷新'"
+                      placement="top"
+                    >
+                      <el-button
+                        size="small"
+                        :icon="RefreshRight"
+                        circle
+                        :loading="refreshingRecordId === recordIdentity(scope.row)"
+                        :disabled="!canRefreshChart(scope.row)"
+                        @click.stop="refreshChartRecord(scope.row)"
                       />
                     </el-tooltip>
                     <el-tooltip v-if="section.name === 'dashboardConfigs'" content="打开数据看板页面" placement="top">
@@ -81,13 +99,11 @@
       <pre class="record-config-content"><code>{{ configDialogText }}</code></pre>
     </el-dialog>
     <el-dialog v-model="previewDialogVisible" :title="previewDialogTitle" width="860px" append-to-body>
-      <iframe
-        v-if="previewDialogMode === 'html'"
-        class="record-html-preview"
-        :srcdoc="previewDialogSrcdoc"
-        sandbox="allow-scripts allow-forms allow-same-origin"
-      ></iframe>
-      <div v-else class="record-preview-content" v-html="previewDialogHtml"></div>
+      <SafeEcharts
+        :option="previewDialogChartOption"
+        :error="previewDialogChartError"
+        min-height="480px"
+      />
     </el-dialog>
   </div>
 </template>
@@ -96,15 +112,31 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { CopyDocument, Document, View } from '@element-plus/icons-vue'
-import DOMPurify from 'dompurify'
+import { CopyDocument, Document, RefreshRight, View } from '@element-plus/icons-vue'
 import { copyTextToClipboard } from '@/utils/clipboard'
-import { PolicyService } from '@/service/api'
-import { DATA_VISUALIZATION_RECORD_EVENT, useDihEventListener } from '../events'
+import {
+  DihService,
+  EntityAnalyticsApi,
+  isSafeEntityAnalyticsTool,
+  SystemService,
+} from '@/service/api'
+import SafeEcharts from '@/components/visualization/safe-echarts.vue'
+import {
+  DATA_VISUALIZATION_EXTRA_DATA_CHANGED_EVENT,
+  DATA_VISUALIZATION_RECORD_EVENT,
+  emitDihEvent,
+  useDihEventListener,
+} from '../events'
 import type { DataVisualizationRecordEventDetail } from '../events'
+import {
+  buildMenuTargetRoute,
+  buildVisualizationTargetRoute,
+  findVisualizationDashboardRecord,
+  isVisualizationDashboardRecord,
+} from './data-visualization-menu-route'
 
 type VisualizationRecord = Record<string, unknown> & {
-  id?: string
+  id?: string | number
   name?: string
   status?: string
   chartType?: string
@@ -114,13 +146,19 @@ type VisualizationRecord = Record<string, unknown> & {
   routeName?: string
   menuParams?: string
   menuType?: string
-  dashboardId?: string
+  dashboardId?: string | number
   code?: string
   menuId?: string
   params?: string
   route?: string
   type?: string
   config?: unknown
+  amisConfig?: unknown
+  echartsOption?: unknown
+  query?: unknown
+  queryMeta?: unknown
+  validationStatus?: string
+  queriedAt?: string
   api?: string
   htmlPath?: string
 }
@@ -136,9 +174,11 @@ const configDialogTitle = ref('配置内容')
 const configDialogText = ref('')
 const previewDialogVisible = ref(false)
 const previewDialogTitle = ref('视图效果预览')
-const previewDialogHtml = ref('')
-const previewDialogMode = ref<'low-code' | 'html'>('low-code')
-const previewDialogSrcdoc = ref('')
+const previewDialogChartOption = ref<unknown>()
+const previewDialogChartError = ref('')
+const refreshingRecordId = ref('')
+const sessionRecordId = ref('')
+const sessionExtraData = ref('')
 
 const asRecordList = (value: unknown): VisualizationRecord[] => {
   return Array.isArray(value)
@@ -225,60 +265,6 @@ const openMenuConfig = (record: VisualizationRecord) => {
   })
 }
 
-type RouteLocation = Parameters<typeof router.resolve>[0]
-
-const encodeBase64 = (value: string) => {
-  try {
-    return window.btoa(value)
-  } catch {
-    return window.btoa(unescape(encodeURIComponent(value)))
-  }
-}
-
-const menuTypeOf = (record: VisualizationRecord) => {
-  return String(record.menuType || record.type || '').toUpperCase()
-}
-
-const menuParamsOf = (record: VisualizationRecord) => {
-  return String(record.params || record.menuParams || '').trim()
-}
-
-const buildMenuTargetRoute = (record: VisualizationRecord): RouteLocation | null => {
-  const menuType = menuTypeOf(record)
-  const route = String(record.route || '').trim()
-  const params = menuParamsOf(record)
-  const routeKey = route || {
-    LOW_CODE_APP: 'low-code-app',
-    LOW_CODE_PAGE: 'low-code-page',
-    HTML_PAGE: 'html-page',
-    POLICY_CONFIG: 'policy-config',
-    EXTERNAL_APP: 'external-app',
-  }[menuType]
-
-  if (!routeKey) {
-    return null
-  }
-  if (routeKey === 'low-code-app') {
-    return params ? { name: 'low-code-app', params: { menuParams: params } } : null
-  }
-  if (routeKey === 'low-code-page') {
-    return params ? { name: 'low-code-page', params: { menuParams: params } } : null
-  }
-  if (routeKey === 'html-page') {
-    return params ? { name: 'html-page', params: { menuParams: encodeBase64(params) } } : null
-  }
-  if (routeKey === 'policy-config') {
-    return params ? { name: 'policy-config', params: { menuParams: params } } : null
-  }
-  if (routeKey === 'external-app') {
-    return params ? { name: 'external-app', params: { menuParams: encodeBase64(params) } } : null
-  }
-  if (routeKey.startsWith('/')) {
-    return { path: routeKey }
-  }
-  return null
-}
-
 const canOpenMenuPage = (record: VisualizationRecord) => {
   return Boolean(buildMenuTargetRoute(record))
 }
@@ -292,8 +278,46 @@ const openMenuPage = (record: VisualizationRecord) => {
   openRouteInNewTab(routeLocation)
 }
 
+const resolveVisualizationDashboard = async (record: VisualizationRecord) => {
+  const panelDashboard = findVisualizationDashboardRecord(record, dashboardConfigs.value)
+  if (panelDashboard) {
+    return panelDashboard
+  }
+  const persistedDashboards = await SystemService.getDashboardList()
+  return findVisualizationDashboardRecord(record, persistedDashboards)
+}
+
+const openVisualizationPage = async (record: VisualizationRecord) => {
+  let dashboard: VisualizationRecord | undefined
+  if (isVisualizationDashboardRecord(record)) {
+    try {
+      dashboard = await resolveVisualizationDashboard(record)
+    } catch (error) {
+      console.error('读取数据看板配置失败:', error)
+      ElMessage.error('读取数据看板配置失败，无法查看视图效果')
+      return
+    }
+  } else {
+    dashboard = findVisualizationDashboardRecord(record, dashboardConfigs.value)
+  }
+  if (dashboard) {
+    openDashboardPage(dashboard)
+    return
+  }
+  if (isVisualizationDashboardRecord(record)) {
+    ElMessage.warning('未找到对应的数据看板配置，无法查看视图效果')
+    return
+  }
+  const routeLocation = buildVisualizationTargetRoute(record, menuConfigs.value)
+  if (!routeLocation) {
+    ElMessage.warning('缺少对应菜单的页面类型或参数，无法打开页面')
+    return
+  }
+  openRouteInNewTab(routeLocation)
+}
+
 const canViewConfig = (sectionName: string, record: VisualizationRecord) => {
-  if (sectionName === 'chartLibrary') return Boolean(record.config)
+  if (sectionName === 'chartLibrary') return Boolean(record.amisConfig || record.config)
   if (sectionName === 'visualizationConfigs') return Boolean(record.configType || record.configIndex)
   if (sectionName === 'dashboardConfigs') return true
   if (sectionName === 'menuConfigs') return true
@@ -301,9 +325,24 @@ const canViewConfig = (sectionName: string, record: VisualizationRecord) => {
 }
 
 const canPreview = (sectionName: string, record: VisualizationRecord) => {
-  if (sectionName === 'chartLibrary') return Boolean(record.config)
-  if (sectionName === 'visualizationConfigs') return Boolean(record.configIndex || record.configType)
+  // 图表库的预览是固定操作。即使历史记录缺少 ECharts 快照，也应保留
+  // 入口并在预览框中说明原因，而不是悄悄隐藏按钮。
+  if (sectionName === 'chartLibrary') return true
+  if (sectionName === 'visualizationConfigs') {
+    return Boolean(
+      isVisualizationDashboardRecord(record)
+      || findVisualizationDashboardRecord(record, dashboardConfigs.value)
+      || buildVisualizationTargetRoute(record, menuConfigs.value),
+    )
+  }
   return false
+}
+
+const previewButtonTip = (sectionName: string, record: VisualizationRecord) => {
+  if (sectionName === 'visualizationConfigs') return '查看视图效果'
+  return chartOptionFromRecord(record)
+    ? '预览图表快照'
+    : '预览图表（历史记录缺少 ECharts 快照）'
 }
 
 const configButtonTip = (sectionName: string) => {
@@ -317,7 +356,11 @@ const configButtonTip = (sectionName: string) => {
 const viewRecordConfig = (sectionName: string, record: VisualizationRecord) => {
   if (sectionName === 'chartLibrary') {
     configDialogTitle.value = String(record.name || '图表配置')
-    configDialogText.value = JSON.stringify(normalizeConfig(record.config) || record, null, 2)
+    configDialogText.value = JSON.stringify(
+      normalizeConfig(record.amisConfig || record.config) || record,
+      null,
+      2,
+    )
     configDialogVisible.value = true
     return
   }
@@ -340,71 +383,115 @@ const previewRecord = async (sectionName: string, record: VisualizationRecord) =
     return
   }
   if (sectionName === 'visualizationConfigs') {
-    await previewVisualizationConfig(record)
+    await openVisualizationPage(record)
   }
 }
 
 const previewChartRecord = (record: VisualizationRecord) => {
+  const option = chartOptionFromRecord(record)
   previewDialogTitle.value = String(record.name || '图表预览')
-  previewDialogMode.value = 'low-code'
-  previewDialogSrcdoc.value = ''
-  previewDialogHtml.value = DOMPurify.sanitize(renderLowCodePreview(normalizeConfig(record.config)))
+  previewDialogChartOption.value = option
+  previewDialogChartError.value = option
+    ? ''
+    : '该历史记录未保存可直接渲染的 ECharts 快照，请重新生成图表或刷新快照后预览'
   previewDialogVisible.value = true
 }
 
-const previewVisualizationConfig = async (record: VisualizationRecord) => {
-  const configType = String(record.configType || configTypeFromRecord(record) || '')
-  const fileName = configFileName(record)
-  if (!configType || !fileName) {
-    ElMessage.warning('缺少配置类型或文件名，无法预览')
+const chartOptionFromRecord = (record: VisualizationRecord) => {
+  const raw = normalizedRecord(record.raw)
+  const echarts = normalizedRecord(record.echarts)
+  const rawEcharts = normalizedRecord(raw.echarts)
+  const amis = normalizedRecord(record.amisConfig || record.config)
+  const candidates = [
+    record.echartsOption,
+    echarts.option,
+    record.option,
+    raw.echartsOption,
+    rawEcharts.option,
+    amis.type === 'chart' ? amis.config : undefined,
+  ]
+  for (const candidate of candidates) {
+    const option = normalizeConfig(candidate)
+    if (isRecord(option) && Object.keys(option).length > 0) return option
+  }
+  return null
+}
+
+const recordIdentity = (record: VisualizationRecord) => {
+  return String(record.id || record.planId || record.name || '')
+}
+
+const chartQuery = (record: VisualizationRecord) => asRecord(record.query)
+
+const canRefreshChart = (record: VisualizationRecord) => {
+  const query = chartQuery(record)
+  return Boolean(
+    sessionRecordId.value
+    && record.source === 'workflow'
+    && record.validationStatus === 'success'
+    && isSafeEntityAnalyticsTool(String(query.tool || ''))
+    && isRecord(query.request),
+  )
+}
+
+const persistChartLibrary = async () => {
+  const extraData = sessionExtraData.value.trim()
+    ? asRecord(JSON.parse(sessionExtraData.value))
+    : {}
+  const dataVisualization = asRecord(extraData.dataVisualization)
+  extraData.dataVisualization = {
+    ...dataVisualization,
+    chartLibrary: chartLibrary.value,
+  }
+  const nextExtraData = JSON.stringify(extraData)
+  await DihService.updateChatSession(sessionRecordId.value, { extra_data: nextExtraData })
+  sessionExtraData.value = nextExtraData
+  emitDihEvent(DATA_VISUALIZATION_EXTRA_DATA_CHANGED_EVENT, { extraData: nextExtraData })
+}
+
+const refreshChartRecord = async (record: VisualizationRecord) => {
+  if (!canRefreshChart(record)) {
+    ElMessage.warning('历史记录缺少安全查询参数，不能刷新')
     return
   }
+  const query = chartQuery(record)
+  const tool = String(query.tool || '')
+  if (!isSafeEntityAnalyticsTool(tool)) return
+  const identity = recordIdentity(record)
+  const previousLibrary = chartLibrary.value
+  refreshingRecordId.value = identity
   try {
-    const content = await PolicyService.textContent(configType, { file_name: fileName })
-    previewDialogTitle.value = `${record.name || '可视化配置'}预览`
-    if (isHtmlRecord(record) || looksLikeHtml(content)) {
-      previewDialogMode.value = 'html'
-      previewDialogSrcdoc.value = content
-      previewDialogHtml.value = ''
-    } else {
-      previewDialogMode.value = 'low-code'
-      previewDialogSrcdoc.value = ''
-      previewDialogHtml.value = DOMPurify.sanitize(renderLowCodePreview(normalizeConfig(content)))
+    const response = await EntityAnalyticsApi.query(tool, asRecord(query.request))
+    const option = response.echarts?.option
+    if (!isRecord(option)) {
+      throw new Error('接口未返回 ECharts option')
     }
-    previewDialogVisible.value = true
+    const refreshed: VisualizationRecord = {
+      ...record,
+      chartType: String(response.echarts?.chart_type || record.chartType || ''),
+      queryMeta: response.meta || {},
+      echartsOption: option,
+      amisConfig: { type: 'chart', config: option },
+      config: { type: 'chart', config: option },
+      queriedAt: new Date().toISOString(),
+      validationStatus: 'success',
+      status: 'temporary',
+    }
+    chartLibrary.value = chartLibrary.value.map(item =>
+      recordIdentity(item) === identity ? refreshed : item)
+    await persistChartLibrary()
+    if (previewDialogVisible.value) {
+      previewDialogChartOption.value = option
+      previewDialogChartError.value = ''
+    }
+    ElMessage.success('图表快照已刷新')
   } catch (error) {
-    console.error('读取可视化配置失败:', error)
-    ElMessage.error('读取配置失败，无法预览')
+    chartLibrary.value = previousLibrary
+    console.error('刷新图表快照失败:', error)
+    ElMessage.error('刷新失败，已保留原快照')
+  } finally {
+    refreshingRecordId.value = ''
   }
-}
-
-const configTypeFromRecord = (record: VisualizationRecord) => {
-  const type = String(record.type || '').toUpperCase()
-  if (type === 'HTML_PAGE') return 'html-page'
-  return String(record.configIndex || '')
-}
-
-const configFileName = (record: VisualizationRecord) => {
-  const explicitFileName = String(record.fileName || '').trim()
-  if (explicitFileName) return explicitFileName
-  const type = String(record.type || '').toUpperCase()
-  if (type === 'LOW_CODE_APP') return 'site.json'
-  if (type === 'LOW_CODE_PAGE') return 'index.json'
-  if (type === 'HTML_PAGE') {
-    const path = String(record.htmlPath || record.configIndex || '').trim()
-    const segments = path.split('/').filter(Boolean)
-    return segments.length ? segments[segments.length - 1] : ''
-  }
-  return ''
-}
-
-const isHtmlRecord = (record: VisualizationRecord) => {
-  return String(record.type || '').toUpperCase() === 'HTML_PAGE'
-}
-
-const looksLikeHtml = (content: string) => {
-  const normalized = content.trim().toLowerCase()
-  return normalized.startsWith('<!doctype html') || normalized.startsWith('<html')
 }
 
 const normalizeConfig = (value: unknown) => {
@@ -418,177 +505,17 @@ const normalizeConfig = (value: unknown) => {
   return value || {}
 }
 
+const normalizedRecord = (value: unknown): Record<string, unknown> => {
+  const normalized = normalizeConfig(value)
+  return isRecord(normalized) ? normalized : {}
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
 const asRecord = (value: unknown): Record<string, unknown> => {
   return isRecord(value) ? value : {}
-}
-
-const asRecordArray = (value: unknown): Record<string, unknown>[] => {
-  return Array.isArray(value) ? value.filter(isRecord) : []
-}
-
-const escapeHtml = (value: unknown) => {
-  const map: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  }
-  return String(value ?? '').replace(/[&<>"']/g, char => map[char] || char)
-}
-
-const renderLowCodePreview = (schema: unknown): string => {
-  const record = asRecord(schema)
-  if (record.status !== undefined && asRecordArray(asRecord(record.data).pages).length > 0) {
-    return renderLowCodeAppPreview(record)
-  }
-  return renderLowCodeNode(asRecord(schema))
-}
-
-const renderLowCodeAppPreview = (schema: Record<string, unknown>) => {
-  const pages = asRecordArray(asRecord(schema.data).pages)
-  const menus = pages.flatMap(page => {
-    const children = asRecordArray(page.children)
-    return children.length ? children : [page]
-  }).filter(page => typeof page.label === 'string' && page.label)
-  return `
-    <div class="dv-preview-app">
-      <aside class="dv-preview-sidebar">
-        <div class="dv-preview-title">低代码应用</div>
-        ${menus.map((menu, index) => `
-          <div class="dv-preview-nav-item ${index === 0 ? 'active' : ''}">
-            <span>${escapeHtml(menu.label)}</span>
-            <small>${escapeHtml(menu.url || '')}</small>
-          </div>
-        `).join('')}
-      </aside>
-      <main class="dv-preview-app-main">
-        <section class="dv-preview-panel">
-          <div class="dv-preview-panel-title">应用首页</div>
-          <div class="dv-preview-text">展示应用入口、数据概览和常用操作。</div>
-        </section>
-        <section class="dv-preview-panel">
-          <div class="dv-preview-panel-title">数据管理</div>
-          <div class="dv-preview-text">提供查询、新增、编辑和删除等数据操作。</div>
-        </section>
-      </main>
-    </div>
-  `
-}
-
-const renderLowCodeNode = (node: unknown): string => {
-  if (Array.isArray(node)) {
-    return node.map(renderLowCodeNode).join('')
-  }
-  const schema = asRecord(node)
-  const type = typeof schema.type === 'string' ? schema.type : ''
-  if (!type && Object.keys(schema).length === 0) {
-    return '<div class="dv-preview-empty">暂无可预览内容。</div>'
-  }
-  if (type === 'page') {
-    return `
-      <div class="dv-preview-page">
-        <header class="dv-preview-header">
-          <div class="dv-preview-title">${escapeHtml(schema.title || '可视化页面')}</div>
-        </header>
-        <div class="dv-preview-body">${renderLowCodeNode(schema.body)}</div>
-      </div>
-    `
-  }
-  if (type === 'chart') {
-    return renderChartPreview(schema)
-  }
-  if (type === 'crud') {
-    return renderCrudPreview(schema)
-  }
-  if (type === 'grid') {
-    const columns = asRecordArray(schema.columns)
-    return `<div class="dv-preview-grid">${columns.map(column => `<section class="dv-preview-panel">${renderLowCodeNode(column.body || column)}</section>`).join('')}</div>`
-  }
-  if (type === 'service' || type === 'panel') {
-    return `
-      <section class="dv-preview-panel">
-        <div class="dv-preview-panel-title">${escapeHtml(schema.title || (type === 'service' ? '服务组件' : '面板'))}</div>
-        ${schema.api ? `<div class="dv-preview-api">${escapeHtml(schema.api)}</div>` : ''}
-        ${renderLowCodeNode(schema.body)}
-      </section>
-    `
-  }
-  if (type === 'tpl') {
-    return `<div class="dv-preview-text">${escapeHtml(stripTemplateText(schema.tpl || '文本内容'))}</div>`
-  }
-  return `
-    <section class="dv-preview-panel">
-      <div class="dv-preview-panel-title">${escapeHtml(type || '组件')}</div>
-      ${renderLowCodeNode(schema.body)}
-    </section>
-  `
-}
-
-const renderChartPreview = (schema: Record<string, unknown>) => {
-  const config = asRecord(schema.config)
-  const title = asRecord(config.title)
-  return `
-    <section class="dv-preview-chart">
-      <div class="dv-preview-panel-title">${escapeHtml(title.text || schema.title || '图表预览')}</div>
-      <div class="dv-preview-api">${escapeHtml(schema.api || '/zenvis/api/v1/entity/trend')}</div>
-      <div class="dv-preview-bars">
-        <span style="height:42%"></span>
-        <span style="height:58%"></span>
-        <span style="height:82%"></span>
-        <span style="height:72%"></span>
-        <span style="height:64%"></span>
-        <span style="height:48%"></span>
-      </div>
-    </section>
-  `
-}
-
-const renderCrudPreview = (schema: Record<string, unknown>) => {
-  const columns = asRecordArray(schema.columns).slice(0, 6)
-  const visibleColumns = columns.length > 0 ? columns : [
-    { name: 'id', label: '事件ID' },
-    { name: 'user', label: '用户' },
-    { name: 'event_type', label: '事件类型' },
-    { name: 'server_time', label: '入库时间' },
-  ]
-  return `
-    <section class="dv-preview-panel">
-      <div class="dv-preview-panel-title">数据列表</div>
-      <div class="dv-preview-api">${escapeHtml(schema.api || '/zenvis/api/v1/entity/user-event/list')}</div>
-      <div class="dv-preview-table-wrap">
-        <table class="dv-preview-table">
-          <thead><tr>${visibleColumns.map(column => `<th>${escapeHtml(column.label || column.name || '-')}</th>`).join('')}</tr></thead>
-          <tbody>
-            <tr>${visibleColumns.map(column => `<td>${escapeHtml(sampleValue(column))}</td>`).join('')}</tr>
-            <tr>${visibleColumns.map(column => `<td>${escapeHtml(sampleValue(column, true))}</td>`).join('')}</tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-  `
-}
-
-const sampleValue = (column: Record<string, unknown>, secondRow = false) => {
-  const name = String(column.name || '').toLowerCase()
-  if (name.includes('id')) return secondRow ? 'evt-002' : 'evt-001'
-  if (name.includes('user')) return secondRow ? 'operator-b' : 'demo-user'
-  if (name.includes('event_type')) return secondRow ? '点击' : '登录'
-  if (name.includes('time')) return secondRow ? '2026-07-09 11:20:00' : '2026-07-09 10:00:00'
-  if (name.includes('reliability')) return secondRow ? '7.6' : '8.8'
-  return secondRow ? '示例值 B' : '示例值 A'
-}
-
-const stripTemplateText = (value: unknown) => {
-  return String(value ?? '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\$\{[^}]+}/g, '示例值')
-    .replace(/\s+/g, ' ')
-    .trim()
 }
 
 const copyRecord = async (record: VisualizationRecord) => {
@@ -606,6 +533,10 @@ const handleRecordsUpdated = (detail: DataVisualizationRecordEventDetail) => {
   visualizationConfigs.value = asRecordList(detail.visualizationConfigs)
   dashboardConfigs.value = asRecordList(detail.dashboardConfigs)
   menuConfigs.value = asRecordList(detail.menuConfigs)
+  sessionExtraData.value = typeof detail.extraData === 'string' ? detail.extraData : ''
+  sessionRecordId.value = typeof detail.sessionRecordId === 'string'
+    ? detail.sessionRecordId
+    : ''
   const firstNonEmpty = sections.value.find(section => section.items.length)
   if (firstNonEmpty) {
     activeTab.value = firstNonEmpty.name
@@ -837,25 +768,6 @@ useDihEventListener(DATA_VISUALIZATION_RECORD_EVENT, handleRecordsUpdated)
   font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;
   font-size: 12px;
   overflow-wrap: anywhere;
-}
-
-.record-preview-content :deep(.dv-preview-bars) {
-  display: flex;
-  align-items: end;
-  gap: 14px;
-  height: 220px;
-  margin-top: 14px;
-  padding: 12px 16px;
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-}
-
-.record-preview-content :deep(.dv-preview-bars span) {
-  flex: 1;
-  min-width: 18px;
-  border-radius: 6px 6px 0 0;
-  background: linear-gradient(180deg, #67c23a 0%, #409eff 100%);
 }
 
 .record-preview-content :deep(.dv-preview-table-wrap) {

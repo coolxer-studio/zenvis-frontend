@@ -1,4 +1,4 @@
-export type ChatMessagePartType = 'markdown' | 'code' | 'config' | 'report-document' | 'notice' | 'confirm' | 'mcp-approval' | 'info-steps' | 'analysis-record' | 'analysis-decision' | 'data-access-decision' | 'metadata-config-record' | 'data-push-service-record' | 'visualization-chart-preview' | 'visualization-chart-record' | 'visualization-config-record' | 'dashboard-config-record' | 'menu-config-record' | 'policy-record' | 'prompt-suggestions' | 'chart' | 'thinking';
+export type ChatMessagePartType = 'markdown' | 'code' | 'config' | 'report-document' | 'report-fragment' | 'notice' | 'confirm' | 'mcp-approval' | 'info-steps' | 'data-analysis-record' | 'data-access-decision' | 'metadata-config-record' | 'data-push-service-record' | 'visualization-chart-preview' | 'visualization-chart-record' | 'visualization-config-record' | 'dashboard-config-record' | 'menu-config-record' | 'config-record' | 'prompt-suggestions' | 'chart' | 'thinking';
 
 export type ChatMessagePartStatus = 'pending' | 'approved' | 'rejected' | string;
 
@@ -60,9 +60,11 @@ export type McpApprovalData = {
   channel?: string;
   policy?: string;
   approvalScope?: McpApprovalScope;
+  sessionApprovalAllowed?: boolean;
   status?: McpApprovalStatus;
-  argumentsSummary?: string;
-  resultSummary?: string;
+  arguments?: string;
+  result?: string;
+  resultLength?: number;
   errorSummary?: string;
   riskLevel?: string;
   createTime?: string;
@@ -99,12 +101,15 @@ export type ReportDocument = {
   title?: string;
   name?: string;
   format?: 'markdown' | 'html' | string;
+  revision?: number;
   version?: string;
   status?: string;
   source?: string;
   updatedAt?: string;
   content?: string;
   outline?: Array<Record<string, unknown>>;
+  contentHash?: string;
+  sourceRefs?: ReportSourceRef[];
   sourceAttachments?: Array<Record<string, unknown>>;
   raw?: Record<string, unknown>;
 };
@@ -116,67 +121,129 @@ export type ReportArtifact = {
   name?: string;
   title?: string;
   format?: 'markdown' | 'html' | string;
+  revision?: number;
   version?: string;
   status?: string;
   createdAt?: string;
   content?: string;
+  contentHash?: string;
+  sourceRefs?: ReportSourceRef[];
+  outline?: Array<Record<string, unknown>>;
 };
 
-export type AnalysisStage = 'log_aggregation' | 'sandbox_analysis' | 'report_output' | string;
+export type ReportSourceRef = Record<string, unknown> & {
+  type?: 'attachment' | 'message' | 'chart' | 'analysis_task' | 'mcp_audit' | string;
+  id?: string;
+  name?: string;
+  status?: string;
+  parseStatus?: string;
+  truncated?: boolean;
+  queriedAt?: string;
+  dataTime?: string;
+};
 
-export type AnalysisRecord = {
+export type ReportRevision = {
+  revision: number;
+  version?: string;
+  title?: string;
+  format?: string;
+  contentHash?: string;
+  createdAt?: string;
+  sourceRefs?: ReportSourceRef[];
+};
+
+export type ReportWorkspace = {
+  currentDocument?: ReportDocument;
+  revisions: ReportRevision[];
+  artifacts: ReportArtifact[];
+  extraData?: string;
+};
+
+export type ReportActionType = 'full_generate' | 'full_rewrite' | 'selection_rewrite';
+
+export type ReportAction = {
+  type: ReportActionType;
+  document_id?: string;
+  base_revision?: number;
+  selection_id?: string;
+  selection_hash?: string;
+  source_refs?: ReportSourceRef[];
+};
+
+export type ReportDocumentSaveParams = {
+  document_id?: string;
+  base_revision: number;
+  title: string;
+  format: 'markdown' | 'html';
+  content: string;
+  outline?: Array<Record<string, unknown>>;
+  source_refs?: ReportSourceRef[];
+};
+
+export type ReportArchiveParams = {
+  document_id?: string;
+  base_revision: number;
+  name?: string;
+};
+
+export type ReportArtifactRenameParams = {
+  base_revision: number;
+  name: string;
+};
+
+export type DataAnalysisStage = 'dataset_preparation' | 'service_analysis' | 'report_output';
+
+export type DataAnalysisRecord = {
   id?: string;
   recordId?: string;
-  stage?: AnalysisStage;
+  stage?: DataAnalysisStage;
   status?: string;
   title?: string;
   content?: string;
   startedAt?: string;
   completedAt?: string;
-  alarm?: Record<string, unknown>;
-  evidenceCount?: number;
-  riskLevel?: string;
-  confidence?: number | string;
-  keyFindings?: unknown[];
-  recommendations?: unknown[];
-  sandboxTaskId?: string;
+  analysisTarget?: string;
+  datasetSummary?: string;
+  datasetRecords?: Array<Record<string, unknown>>;
+  serviceTaskId?: string;
+  analysisResult?: unknown;
+  timeline?: Array<Record<string, unknown>>;
   toolNames?: unknown[];
   raw?: Record<string, unknown>;
   [key: string]: unknown;
 };
 
-export type AnalysisExtraData = {
-  records?: AnalysisRecord[];
-  aggregatedLogs?: Array<Record<string, unknown>>;
-  sandboxResults?: Array<Record<string, unknown>>;
-  conclusionTimeline?: Array<Record<string, unknown>>;
+export type DataAnalysisExtraData = {
+  records?: DataAnalysisRecord[];
+  datasetRecords?: Array<Record<string, unknown>>;
+  serviceResults?: Array<Record<string, unknown>>;
+  reportTimeline?: Array<Record<string, unknown>>;
 };
 
-export type PolicyType = 'collection' | 'tagging' | 'disposal' | string;
-export type PolicyChangeMode = 'add' | 'modify' | string;
-export type PolicyValidationStatus = 'unverified' | 'success' | 'failed' | string;
-export type PolicyEffectiveStatus = 'yes' | 'no' | string;
+export type ConfigChangeMode = 'add' | 'modify';
+export type ConfigValidationStatus = 'unverified' | 'success' | 'failed' | 'blocked';
+export type ConfigEffectiveStatus = 'yes' | 'no';
 
-export type PolicyRecord = {
+export type ConfigRecord = {
   id?: string;
   recordId?: string;
-  policyType?: PolicyType;
   changeDescription?: string;
-  changeMode?: PolicyChangeMode;
+  changeMode?: ConfigChangeMode;
   configType?: string;
   fileName?: string;
+  format?: string;
   oldConfig?: unknown;
   newConfig?: unknown;
-  validationStatus?: PolicyValidationStatus;
-  effectiveStatus?: PolicyEffectiveStatus;
-  trialResult?: unknown;
+  validationStatus?: ConfigValidationStatus;
+  effectiveStatus?: ConfigEffectiveStatus;
+  validationResult?: unknown;
   applyResult?: unknown;
   updatedAt?: string;
   [key: string]: unknown;
 };
 
-export type PolicyExtraData = {
-  records?: PolicyRecord[];
+export type ConfigurationExtraData = {
+  records?: ConfigRecord[];
 };
 
 export type ModelInfo = {
@@ -208,6 +275,16 @@ export type AgentSkillVo = {
   order: number;
   path?: string;
   updateTime?: string;
+};
+
+export type ChatSkillEntryVo = {
+  skillId: string;
+  chatType: string;
+  agentType: string;
+  label: string;
+  description?: string;
+  icon: string;
+  order: number;
 };
 
 export type SkillSearchParams = {
@@ -250,6 +327,7 @@ export type ChatParams = {
   response_format?: 'text' | 'events';
   context?: string[];
   attachments?: ChatAttachment[];
+  report_action?: ReportAction;
   [key: string]: unknown;
 };
 
@@ -257,7 +335,46 @@ export type ChatActionDecisionParams = {
   chat_id: string;
   message_id: string;
   part_id: string;
-  decision: 'approved' | 'rejected' | 'dispose' | 'ignore' | 'continue' | 'apply_config' | 'abandon' | 'revise' | 'submitted';
+  decision: 'approved' | 'rejected' | 'apply_config' | 'abandon' | 'revise' | 'submitted';
+};
+
+export type WorkflowActionName =
+  | 'submit'
+  | 'approve'
+  | 'reject'
+  | 'revise'
+  | 'retry'
+  | 'add_to_library';
+
+export type WorkflowActionParams = {
+  chat_id: string;
+  message_id: string;
+  part_id: string;
+  workflow_id: string;
+  action: WorkflowActionName;
+  answers?: Array<Record<string, unknown>>;
+  revision?: string;
+};
+
+export type WorkflowActionResult = {
+  accepted: boolean;
+  workflowId: string;
+  state: string;
+  partStatus: string;
+  continuation: {
+    display?: string;
+    request?: string;
+    [key: string]: unknown;
+  };
+  retryable: boolean;
+  extraData?: string;
+};
+
+export type WorkflowTelemetryParams = {
+  chat_id: string;
+  workflow_id: string;
+  event: 'chart_render_failed';
+  detail?: string;
 };
 
 export type McpApprovalDecisionParams = {

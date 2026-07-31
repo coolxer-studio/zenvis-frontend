@@ -24,14 +24,14 @@
                 <span class="typing-dot"></span>
                 <span class="typing-dot"></span>
               </div>
-              <chat-message-renderer
+              <message-card-renderer
                 v-else
                 :message="message"
                 @copy-code="copyMessage"
                 @decide-action="handleActionDecision(message, $event)"
                 @submit-info-steps="handleInfoStepsSubmit(message, $event)"
                 @add-chart-library="handleAddChartLibrary(message, $event)"
-                @choose-analysis-decision="handleAnalysisDecision(message, $event)"
+                @chart-render-failed="handleChartRenderFailure($event)"
                 @choose-data-access-decision="handleDataAccessDecision(message, $event)"
                 @decide-mcp-approval="handleMcpApprovalDecision(message, $event)"
                 @select-prompt-suggestion="fillPromptSuggestion"
@@ -85,6 +85,14 @@
 
     <!-- 输入区域 -->
     <div class="input-area">
+      <el-alert
+        v-if="skillEntryUnavailable"
+        class="skill-unavailable-alert"
+        title="当前 Skill 已停用或不存在，请选择其他可用技能后继续。"
+        type="warning"
+        :closable="false"
+        show-icon
+      />
       <div class="input-container">
         <el-input v-model="inputMessage" type="textarea" :rows="1" :autosize="{ minRows: 2, maxRows: 6 }"
           placeholder="输入你的问题，帮你深度解答" @keydown.enter.exact.prevent="handleEnterPress" 
@@ -197,7 +205,7 @@ import { DihService } from '@/service/api'
 import { useRouter } from 'vue-router'
 import { generateUUID } from '@/utils/util-common'
 import { copyTextToClipboard } from '@/utils/clipboard';
-import ChatMessageRenderer from './chat-message-renderer.vue';
+import MessageCardRenderer from '@/components/dih-message/message-card-renderer.vue';
 import { useChatAttachments } from '../composables/use-chat-attachments';
 import { useChatMessageActions } from '../composables/use-chat-message-actions';
 import { useChatSession } from '../composables/use-chat-session';
@@ -246,9 +254,12 @@ interface Props {
   suggestions: Suggestion[]
   chatSessionId?: string
   chatSessionType?: string
+  skillEntryUnavailable?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  skillEntryUnavailable: false,
+})
 
 const {
   pendingAttachments,
@@ -527,18 +538,14 @@ const {
   upsertMcpApprovalPart,
   mergeFinalApprovalParts,
   rejectPendingMcpApprovals,
+  isChatUnavailable: computed(() => props.skillEntryUnavailable),
 });
 
 onMounted(() => {
   void fetchModelList();
 });
 
-const {
-  addChartRecordToExtraData,
-  buildDisposeAgentPrompt,
-  openDisposeAgentSession,
-} = usePanelRecordSync({
-  router,
+usePanelRecordSync({
   messages,
   chatSessionExtraData,
   chatSessionRecordId,
@@ -551,16 +558,12 @@ const {
   handleInfoStepsSubmit,
   handleActionDecision,
   handleAddChartLibrary,
-  handleAnalysisDecision,
   handleDataAccessDecision,
+  handleChartRenderFailure,
 } = useChatMessageActions({
   chatSessionId,
   chatSessionExtraData,
   sendMessage,
-  ensureChatSessionRecordId,
-  addChartRecordToExtraData,
-  buildDisposeAgentPrompt,
-  openDisposeAgentSession,
 });
 
 const fetchModelList = async () => {
@@ -994,6 +997,10 @@ const dislikeMessage = (index: number) => {
 .input-area {
   padding: 15px;
   border-top: 1px solid #f0f0f0;
+}
+
+.skill-unavailable-alert {
+  margin-bottom: 10px;
 }
 
 .input-container {
