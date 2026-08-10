@@ -1,16 +1,12 @@
 <template>
-  <iframe
-    :src="iframeUrl"
-    class="iframe-container"
-    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
-    referrerpolicy="no-referrer"
-  />
+  <PluginFrame :src="iframeUrl" title="插件页面" />
 </template>
 
 <script setup lang="ts">
 import { watch, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { appBaseUrl, sanitizeIframeUrl } from '@u/url';
+import PluginFrame from '@c/plugin-frame.vue';
 const route = useRoute();
 const baseUrl = ref<string>('/amis/page.html');
 // 提取路径参数并转换为字符串
@@ -48,10 +44,3 @@ watch(
   { deep: true }
 );
 </script>
-<style lang="scss" scoped>
-.iframe-container {
-  width: 100%;
-  height: 100%;
-  border: none;
-}
-</style>

@@ -1,16 +1,11 @@
 <template>
-  <iframe
-    :src="iframeUrl"
-    frameborder="0"
-    class="dashboard-iframe"
-    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
-    referrerpolicy="no-referrer"
-  ></iframe>
+  <PluginFrame :src="iframeUrl" title="链接看板" />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import { sanitizeIframeUrl } from '@u/url';
+import PluginFrame from '@c/plugin-frame.vue';
 
 const props = defineProps({
   data: {
@@ -23,10 +18,3 @@ const props = defineProps({
 
 const iframeUrl = computed(() => sanitizeIframeUrl(String(props.data?.url || '')));
 </script>
-
-<style lang="scss" scoped>
-.dashboard-iframe {
-  width: 100%;
-  height: 100%;
-}
-</style>

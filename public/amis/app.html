@@ -10,6 +10,28 @@
   <link rel="stylesheet" href="./sdk/sdk.css" />
   <link rel="stylesheet" href="./sdk/helper.css" />
   <link rel="stylesheet" href="./sdk/iconfont.css" />
+  <link rel="stylesheet" href="./zenvis-modern.css" />
+  <script>
+    (function () {
+      const allowedThemes = ['light', 'dark'];
+      const queryTheme = new URLSearchParams(window.location.search).get('theme');
+      let theme = allowedThemes.includes(queryTheme) ? queryTheme : 'light';
+      try {
+        const parentTheme = window.parent.document.documentElement.dataset.theme;
+        if (allowedThemes.includes(parentTheme)) theme = parentTheme;
+      } catch (_) {}
+      const applyTheme = function (value) {
+        if (!allowedThemes.includes(value)) return;
+        document.documentElement.dataset.theme = value;
+        document.documentElement.style.colorScheme = value;
+      };
+      applyTheme(theme);
+      window.addEventListener('message', function (event) {
+        if (event.origin !== window.location.origin || event.data?.type !== 'zenvis:theme') return;
+        applyTheme(event.data.theme);
+      });
+    })();
+  </script>
 
   <style>
     html,
@@ -52,6 +74,7 @@
 <body>
   <div id="root" class="app-wrapper"></div>
   <script src="./sdk/sdk.js"></script>
+  <script src="./js/zenvis-chart-theme.js"></script>
   <script src="./js/history.js"></script>
   <script src="./js/vue.js"></script>
 
@@ -84,7 +107,7 @@
         //            className: 'w-full',
         //            tpl: '<div class="flex justify-between"><div>顶部区域左侧</div><div>顶部区域右侧</div></div>'
         //         },
-        footer: '<div class="p-2 text-center bg-light">Copyright © 2024 coolXer团队. All rights reserved.</div>',
+        footer: '<div class="p-2 text-center">ZenVis · Security Operations Platform</div>',
         api: withApiBaseUrl('/api/v1/config/' + encodeURIComponent(siteConfig || '') + '/get?file_name=site.json')
       };
 

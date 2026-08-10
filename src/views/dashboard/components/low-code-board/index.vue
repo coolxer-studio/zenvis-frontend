@@ -1,16 +1,11 @@
 <template>
-  <iframe
-    :src="iframeUrl"
-    frameborder="0"
-    class="dashboard-iframe"
-    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
-    referrerpolicy="no-referrer"
-  ></iframe>
+  <PluginFrame :src="iframeUrl" title="低代码看板" />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import { appBaseUrl, sanitizeIframeUrl } from '@u/url';
+import PluginFrame from '@c/plugin-frame.vue';
 
 const props = defineProps({
   data: {
@@ -30,10 +25,3 @@ const iframeUrl = computed(() =>
   ),
 );
 </script>
-
-<style lang="scss" scoped>
-.dashboard-iframe {
-  width: 100%;
-  height: 100%;
-}
-</style>

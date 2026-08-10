@@ -10,6 +10,28 @@
   <link rel="stylesheet" href="sdk/sdk.css" />
   <link rel="stylesheet" href="sdk/helper.css" />
   <link rel="stylesheet" href="sdk/iconfont.css" />
+  <link rel="stylesheet" href="zenvis-modern.css" />
+  <script>
+    (function () {
+      const allowedThemes = ['light', 'dark'];
+      const queryTheme = new URLSearchParams(window.location.search).get('theme');
+      let theme = allowedThemes.includes(queryTheme) ? queryTheme : 'light';
+      try {
+        const parentTheme = window.parent.document.documentElement.dataset.theme;
+        if (allowedThemes.includes(parentTheme)) theme = parentTheme;
+      } catch (_) {}
+      const applyTheme = function (value) {
+        if (!allowedThemes.includes(value)) return;
+        document.documentElement.dataset.theme = value;
+        document.documentElement.style.colorScheme = value;
+      };
+      applyTheme(theme);
+      window.addEventListener('message', function (event) {
+        if (event.origin !== window.location.origin || event.data?.type !== 'zenvis:theme') return;
+        applyTheme(event.data.theme);
+      });
+    })();
+  </script>
   <style>
     html,
     body,
@@ -28,6 +50,7 @@
   <!-- 引入 axios 和 amis sdk -->
   <script src="js/axios.min.js"></script>
   <script src="sdk/sdk.js"></script>
+  <script src="js/zenvis-chart-theme.js"></script>
   <script type="text/javascript">
     // 等待 DOM 和 SDK 加载完成
     window.onload = function () {

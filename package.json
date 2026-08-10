@@ -29,6 +29,7 @@
     "jsencrypt": "^3.2.1",
     "marked": "^16.2.1",
     "monaco-editor": "^0.52.2",
+    "naive-ui": "2.44.1",
     "pinia": "^3.0.4",
     "turndown": "7.2.4",
     "turndown-plugin-gfm": "1.0.2",

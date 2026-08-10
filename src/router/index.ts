@@ -1,8 +1,8 @@
 import { createRouter, createWebHashHistory, RouteRecordRaw } from 'vue-router';
 import { getAuthToken, hasLoginSession, setAuthToken } from '@u/auth-session';
-import layout_blank from '@c/layout/layout-blank.vue';
-import layout_header from '@c/layout/layout-header.vue';
-import layout_full from '@c/layout/layout-full.vue';
+import layout_blank from '@c/layout/layout-blank-modern.vue';
+import layout_header from '@c/layout/layout-header-modern.vue';
+import layout_full from '@c/layout/layout-full-modern.vue';
 
 const LOGIN_PATH = '/user/login';
 const HOME_PATH = '/dashboard/index';
@@ -23,7 +23,7 @@ const basicRoutes: Array<RouteRecordRaw> = [
     children: [
       {
         path: 'login',
-        component: () => import('@v/login/index.vue'),
+        component: () => import('@v/login/modern.vue'),
         name: 'login'
       }
     ]
@@ -35,7 +35,7 @@ const basicRoutes: Array<RouteRecordRaw> = [
     children: [
       {
         path: 'index',
-        component: () => import('@v/dashboard/index.vue'),
+        component: () => import('@v/dashboard/modern.vue'),
         name: 'dashboard'
       }
     ]
