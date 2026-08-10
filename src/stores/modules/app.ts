@@ -3,8 +3,6 @@ import { defineStore } from 'pinia';
 interface AppState {
   // 侧边栏状态
   sidebarCollapsed: boolean;
-  // 主题模式
-  theme: 'light' | 'dark';
   // 语言
   language: string;
   // 页面加载状态
@@ -19,16 +17,12 @@ interface AppState {
 export const useAppStore = defineStore('app', {
   state: (): AppState => ({
     sidebarCollapsed: false,
-    theme: 'light',
     language: 'zh-CN',
     isLoading: false,
     device: 'desktop',
   }),
 
   getters: {
-    // 获取当前主题
-    currentTheme: (state) => state.theme,
-
     // 是否为移动设备
     isMobile: (state) => state.device === 'mobile',
 
@@ -45,16 +39,6 @@ export const useAppStore = defineStore('app', {
     // 设置侧边栏状态
     setSidebarCollapsed(collapsed: boolean) {
       this.sidebarCollapsed = collapsed;
-    },
-
-    // 切换主题
-    toggleTheme() {
-      this.theme = this.theme === 'light' ? 'dark' : 'light';
-    },
-
-    // 设置主题
-    setTheme(theme: 'light' | 'dark') {
-      this.theme = theme;
     },
 
     // 设置语言
@@ -79,7 +63,7 @@ export const useAppStore = defineStore('app', {
 
   persist: {
     key: 'pinia_app',
-    paths: ['sidebarCollapsed', 'theme', 'language', 'device'],
+    paths: ['sidebarCollapsed', 'language', 'device'],
     expire: 2592e8,
   },
 });

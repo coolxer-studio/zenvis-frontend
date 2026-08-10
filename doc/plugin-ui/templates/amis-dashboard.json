@@ -1,0 +1,51 @@
+{
+  "type": "page",
+  "title": "插件数据总览",
+  "className": "zv-page",
+  "body": [
+    {
+      "type": "grid",
+      "className": "zv-grid zv-grid--metrics",
+      "columns": [
+        {
+          "md": 3,
+          "sm": 6,
+          "xs": 12,
+          "body": {
+            "type": "card",
+            "className": "zv-metric-card zv-tone-primary",
+            "body": {
+              "type": "tpl",
+              "tpl": "<span class='zv-metric-label'>资产总数</span><strong class='zv-metric-value'>${assetTotal || 0}</strong><span class='zv-metric-help'>当前纳管资产</span>"
+            }
+          }
+        },
+        {
+          "md": 3,
+          "sm": 6,
+          "xs": 12,
+          "body": {
+            "type": "card",
+            "className": "zv-metric-card zv-tone-success",
+            "body": {
+              "type": "tpl",
+              "tpl": "<span class='zv-metric-label'>正常运行</span><strong class='zv-metric-value'>${healthy || 0}</strong><span class='zv-metric-help'>实时健康状态</span>"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "chart",
+      "className": "zv-chart-card",
+      "height": 360,
+      "config": {
+        "tooltip": { "trigger": "axis", "confine": true },
+        "grid": { "left": 24, "right": 24, "top": 56, "bottom": 32, "containLabel": true },
+        "xAxis": { "type": "category", "data": "${labels || []}" },
+        "yAxis": { "type": "value", "minInterval": 1 },
+        "series": [{ "type": "line", "smooth": true, "data": "${values || []}" }]
+      }
+    }
+  ]
+}

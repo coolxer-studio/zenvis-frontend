@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --zv-primary: #4f6ef7;
   --zv-primary-rgb: 79 110 247;
   --zv-primary-hover: #6682ff;
@@ -35,34 +36,12 @@
   --zv-header-height: 68px;
   --zv-motion: cubic-bezier(0.2, 0.8, 0.2, 1);
   --zv-ease-out: var(--zv-motion);
-}
-
-:root[data-theme='dark'] {
-  --zv-primary: #8096ff;
-  --zv-primary-hover: #9aaaff;
-  --zv-primary-rgb: 128 150 255;
-  --zv-primary-soft: rgba(128, 150, 255, 0.14);
-  --zv-cyan: #48d7e8;
-  --zv-success: #32d69b;
-  --zv-warning: #ffbd5a;
-  --zv-danger: #ff718d;
-  --zv-bg: #0b1120;
-  --zv-bg-elevated: #111a2e;
-  --zv-bg-canvas-rgb: 11 17 32;
-  --zv-bg-subtle: #0f182a;
-  --zv-bg-surface-rgb: 17 26 46;
-  --zv-text: #edf4ff;
-  --zv-text-secondary: #adbad0;
-  --zv-text-muted: #7f8da7;
-  --zv-border: #263551;
-  --zv-divider: #22304a;
-  --zv-border-rgb: 38 53 81;
-  --zv-header: rgba(11, 17, 32, 0.88);
-  --zv-sidebar: #070d19;
-  --zv-sidebar-hover: rgba(255, 255, 255, 0.08);
-  --zv-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --zv-shadow-md: 0 16px 36px rgba(0, 0, 0, 0.28);
-  --zv-shadow-lg: 0 30px 72px rgba(0, 0, 0, 0.38);
+  --zv-canvas: var(--zv-bg-canvas);
+  --zv-surface: var(--zv-bg-surface);
+  --zv-surface-raised: var(--zv-bg-elevated);
+  --zv-surface-muted: var(--zv-bg-muted);
+  --zv-shadow: var(--zv-shadow-md);
+  --zv-ease: var(--zv-motion);
 }
 
 html,

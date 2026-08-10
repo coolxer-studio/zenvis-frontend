@@ -1,23 +1,24 @@
-(function () {
+(function (global) {
   'use strict';
 
   var updateTimer = 0;
   var chartModule = null;
+  var palette = Object.freeze({
+    primary: '#4f6ef7',
+    cyan: '#22b8cf',
+    success: '#12b981',
+    warning: '#f59e0b',
+    danger: '#ef476f',
+    heading: '#172033',
+    text: '#5f6b7e',
+    muted: '#8b97aa',
+    line: '#d3dbe8',
+    split: '#edf1f6',
+    surface: 'transparent',
+    pieBorder: '#ffffff',
+  });
 
-  function currentPalette() {
-    var dark = document.documentElement.dataset.theme === 'dark';
-    return {
-      dark: dark,
-      heading: dark ? '#edf3fc' : '#172033',
-      text: dark ? '#b6c2d4' : '#64748b',
-      line: dark ? '#35435a' : '#dbe2ea',
-      split: dark ? 'rgba(126, 140, 164, .18)' : '#edf1f6',
-      surface: 'transparent',
-      pieBorder: dark ? '#111827' : '#ffffff',
-    };
-  }
-
-  function axisTheme(palette, includeSplitLine) {
+  function axisTheme(includeSplitLine) {
     var option = {
       axisLine: { lineStyle: { color: palette.line } },
       axisTick: { lineStyle: { color: palette.line } },
@@ -30,14 +31,14 @@
     return option;
   }
 
-  function patchChart(host, palette) {
+  function patchChart(host) {
     var chart = chartModule && chartModule.getInstanceByDom(host);
     if (!chart) return;
 
     var current = chart.getOption() || {};
     var patch = {
       backgroundColor: palette.surface,
-      darkMode: palette.dark,
+      darkMode: false,
       textStyle: { color: palette.text },
     };
 
@@ -52,19 +53,19 @@
     if (current.title) {
       patch.title = current.title.map(function () {
         return {
-          textStyle: { color: palette.heading, fontWeight: 600 },
+          textStyle: { color: palette.heading, fontWeight: 650 },
           subtextStyle: { color: palette.text },
         };
       });
     }
     if (current.xAxis) {
       patch.xAxis = current.xAxis.map(function () {
-        return axisTheme(palette, true);
+        return axisTheme(true);
       });
     }
     if (current.yAxis) {
       patch.yAxis = current.yAxis.map(function () {
-        return axisTheme(palette, true);
+        return axisTheme(true);
       });
     }
     if (current.radar) {
@@ -96,32 +97,29 @@
   function updateCharts() {
     updateTimer = 0;
     try {
-      chartModule = chartModule || window.amisRequire('echarts');
+      chartModule = chartModule || global.amisRequire('echarts');
     } catch (_) {
       return;
     }
-
-    var palette = currentPalette();
-    document.querySelectorAll('[_echarts_instance_]').forEach(function (host) {
-      patchChart(host, palette);
-    });
+    document.querySelectorAll('[_echarts_instance_]').forEach(patchChart);
   }
 
   function scheduleUpdate() {
-    window.clearTimeout(updateTimer);
-    updateTimer = window.setTimeout(updateCharts, 80);
+    global.clearTimeout(updateTimer);
+    updateTimer = global.setTimeout(updateCharts, 80);
   }
 
   function start() {
     scheduleUpdate();
     var root = document.getElementById('root') || document.body;
     new MutationObserver(scheduleUpdate).observe(root, { childList: true, subtree: true });
+    global.addEventListener('resize', scheduleUpdate);
+    document.addEventListener('zenvis:ui-sync', scheduleUpdate);
   }
 
-  window.addEventListener('message', function (event) {
-    if (event.origin !== window.location.origin || event.data?.type !== 'zenvis:theme') return;
-    scheduleUpdate();
-    window.setTimeout(updateCharts, 260);
+  global.ZenVisPluginChart = Object.freeze({
+    palette: palette,
+    refresh: scheduleUpdate,
   });
 
   if (document.readyState === 'loading') {
@@ -129,4 +127,4 @@
   } else {
     start();
   }
-})();
+})(window);
