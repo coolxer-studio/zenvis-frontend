@@ -10,28 +10,9 @@
   <link rel="stylesheet" href="./sdk/sdk.css" />
   <link rel="stylesheet" href="./sdk/helper.css" />
   <link rel="stylesheet" href="./sdk/iconfont.css" />
+  <link rel="stylesheet" href="./plugin-ui/v1/zenvis-plugin-ui.css" />
   <link rel="stylesheet" href="./zenvis-modern.css" />
-  <script>
-    (function () {
-      const allowedThemes = ['light', 'dark'];
-      const queryTheme = new URLSearchParams(window.location.search).get('theme');
-      let theme = allowedThemes.includes(queryTheme) ? queryTheme : 'light';
-      try {
-        const parentTheme = window.parent.document.documentElement.dataset.theme;
-        if (allowedThemes.includes(parentTheme)) theme = parentTheme;
-      } catch (_) {}
-      const applyTheme = function (value) {
-        if (!allowedThemes.includes(value)) return;
-        document.documentElement.dataset.theme = value;
-        document.documentElement.style.colorScheme = value;
-      };
-      applyTheme(theme);
-      window.addEventListener('message', function (event) {
-        if (event.origin !== window.location.origin || event.data?.type !== 'zenvis:theme') return;
-        applyTheme(event.data.theme);
-      });
-    })();
-  </script>
+  <script src="./plugin-ui/v1/zenvis-plugin-ui.js"></script>
 
   <style>
     html,
@@ -74,7 +55,7 @@
 <body>
   <div id="root" class="app-wrapper"></div>
   <script src="./sdk/sdk.js"></script>
-  <script src="./js/zenvis-chart-theme.js"></script>
+  <script src="./plugin-ui/v1/zenvis-plugin-chart.js"></script>
   <script src="./js/history.js"></script>
   <script src="./js/vue.js"></script>
 

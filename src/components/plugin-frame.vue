@@ -27,7 +27,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { NSpin } from 'naive-ui';
-import { useThemeMode } from '@/composables/use-theme-mode';
 
 const props = withDefaults(
   defineProps<{
@@ -40,41 +39,32 @@ const props = withDefaults(
 );
 
 const loading = ref(true);
-const { isDark } = useThemeMode();
 const frameRef = ref<HTMLIFrameElement | null>(null);
-const initialTheme = isDark.value ? 'dark' : 'light';
-const iframeSrc = computed(() => {
-  if (!props.src) return props.src;
-  const url = new URL(props.src, window.location.origin);
+const iframeSrc = computed(() => props.src);
 
-  if (url.origin !== window.location.origin) {
-    return url.toString();
-  }
-
-  url.searchParams.set('theme', initialTheme);
-  return `${url.pathname}${url.search}${url.hash}`;
-});
-
-const syncIframeTheme = () => {
+const syncIframeUi = () => {
   const frame = frameRef.value;
   if (!frame?.contentWindow) return;
-  const theme = isDark.value ? 'dark' : 'light';
   const targetOrigin = new URL(props.src, window.location.origin).origin;
 
   try {
     if (targetOrigin === window.location.origin && frame.contentDocument) {
-      frame.contentDocument.documentElement.dataset.theme = theme;
-      frame.contentDocument.documentElement.style.colorScheme = theme;
+      frame.contentDocument.documentElement.dataset.zenvisUi = '1';
+      frame.contentDocument.documentElement.removeAttribute('data-theme');
+      frame.contentDocument.documentElement.style.colorScheme = 'light';
     }
   } catch {
-    // Cross-origin frames receive the same update through postMessage below.
+    // Cross-origin frames receive the same contract update through postMessage below.
   }
 
-  frame.contentWindow.postMessage({ type: 'zenvis:theme', theme }, targetOrigin);
+  frame.contentWindow.postMessage(
+    { type: 'zenvis:ui', version: '1', colorScheme: 'light' },
+    targetOrigin,
+  );
 };
 
 const handleLoad = () => {
-  syncIframeTheme();
+  syncIframeUi();
   window.setTimeout(() => {
     loading.value = false;
   }, 160);
@@ -87,7 +77,6 @@ watch(
   }
 );
 
-watch(() => isDark.value, syncIframeTheme);
 </script>
 
 <style scoped lang="scss">

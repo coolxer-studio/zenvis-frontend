@@ -37,10 +37,9 @@ import { DihService, PolicyService } from '@/service/api';
 import { useRouter } from 'vue-router';
 import { generateUUID } from '@/utils/util-common';
 import { setupMonacoWorkers } from '@u/monaco-workers';
-import { useThemeMode } from '@/composables/use-theme-mode';
 
 // 定义类型
-type Theme = 'vs' | 'hc-black' | 'vs-dark';
+type Theme = 'vs';
 type FoldingStrategy = 'auto' | 'indentation';
 type RenderLineHighlight = 'all' | 'line' | 'none' | 'gutter';
 
@@ -87,9 +86,9 @@ const props = defineProps({
   theme: {
     type: String as PropType<Theme>,
     validator(value: string): boolean {
-      return ['vs', 'hc-black', 'vs-dark'].includes(value);
+      return value === 'vs';
     },
-    default: 'vs-dark',
+    default: 'vs',
   },
   options: {
     type: Object as PropType<Options>,
@@ -119,7 +118,6 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
-const { isDark } = useThemeMode();
 const codeEditBox = ref<HTMLElement | null>(null);
 let editor: monaco.editor.IStandaloneCodeEditor | null = null;
 let documentationCommandId: string | null = null;
@@ -241,7 +239,7 @@ const init = () => {
   editor = monaco.editor.create(codeEditBox.value, {
     value: props.modelValue || '',
     language: props.language,
-    theme: isDark.value ? 'vs-dark' : 'vs',
+    theme: props.theme,
     ...props.options,
   });
 
@@ -434,10 +432,6 @@ watch(
     }
   },
 );
-
-watch(isDark, value => {
-  monaco.editor.setTheme(value ? 'vs-dark' : 'vs');
-});
 
 // 组件卸载前清理
 onBeforeUnmount(() => {

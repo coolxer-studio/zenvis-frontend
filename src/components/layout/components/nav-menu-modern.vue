@@ -10,20 +10,6 @@
     />
 
     <div class="header-tools">
-      <n-tooltip trigger="hover">
-        <template #trigger>
-          <n-button quaternary circle class="theme-toggle" @click="toggleTheme">
-            <template #icon>
-              <n-icon :size="19">
-                <Moon v-if="!isDark" />
-                <Sunny v-else />
-              </n-icon>
-            </template>
-          </n-button>
-        </template>
-        {{ isDark ? '切换为浅色模式' : '切换为深色模式' }}
-      </n-tooltip>
-
       <n-dropdown :options="userOptions" trigger="click" @select="handleUserAction">
         <n-button quaternary class="user-trigger">
           <n-avatar round :size="34" class="user-avatar">{{ userInitial }}</n-avatar>
@@ -49,17 +35,15 @@ import {
   NDropdown,
   NIcon,
   NMenu,
-  NTooltip,
   type DropdownOption,
   type MenuOption,
   useDialog,
   useMessage,
 } from 'naive-ui';
-import { ArrowDown, Lock, Moon, Sunny, SwitchButton } from '@element-plus/icons-vue';
+import { ArrowDown, Lock, SwitchButton } from '@element-plus/icons-vue';
 import JSEncrypt from 'jsencrypt';
 
 import Password from './nav-password.vue';
-import { useThemeMode } from '@/composables/use-theme-mode';
 import { UserService } from '@/service/api';
 import { clearLoginSession, getPermissionList, getUserInfo } from '@u/auth-session';
 
@@ -78,7 +62,6 @@ const router = useRouter();
 const route = useRoute();
 const dialog = useDialog();
 const message = useMessage();
-const { isDark, toggleTheme } = useThemeMode();
 const showPassword = ref(false);
 const currentKey = ref<string>('');
 const userInfo = getUserInfo<{ name?: string; email?: string }>() || {};
@@ -238,10 +221,6 @@ const closeModel = () => {
   align-items: center;
   gap: 8px;
   padding-left: 10px;
-}
-
-.theme-toggle {
-  color: var(--zv-text-secondary);
 }
 
 .user-trigger {

@@ -165,7 +165,7 @@ onMounted(() => {
     editor = monaco.editor.create(editorContainer.value, {
       value: configContent,
       language: 'ini',
-      theme: 'vs-dark',
+      theme: 'vs',
       automaticLayout: true,
       minimap: { enabled: true },
       scrollBeyondLastLine: false,

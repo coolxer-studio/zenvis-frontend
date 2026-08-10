@@ -1,10 +1,5 @@
 <template>
-  <n-config-provider
-    :theme="naiveTheme"
-    :theme-overrides="themeOverrides"
-    :locale="zhCN"
-    :date-locale="dateZhCN"
-  >
+  <n-config-provider :theme-overrides="zenvisLightTheme" :locale="zhCN" :date-locale="dateZhCN">
     <n-loading-bar-provider>
       <n-dialog-provider>
         <n-notification-provider placement="top-right" :max="4">
@@ -22,7 +17,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { onMounted } from 'vue';
 import {
   NConfigProvider,
   NDialogProvider,
@@ -38,17 +33,13 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 
 import AiFloatBall from './components/ai-float-ball.vue';
-import { useThemeMode } from '@/composables/use-theme-mode';
 import { SystemService } from '@/service/api';
-import { zenvisDarkTheme, zenvisLightTheme } from '@/theme/naive-theme';
+import { zenvisLightTheme } from '@/theme/naive-theme';
 import { getAssetUrl } from '@u/url';
 
 defineOptions({ name: 'RootApp' });
 
 dayjs.locale('zh-cn');
-
-const { isDark, naiveTheme } = useThemeMode();
-const themeOverrides = computed(() => (isDark.value ? zenvisDarkTheme : zenvisLightTheme));
 
 const updateFavicon = (iconUrl: string) => {
   const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
