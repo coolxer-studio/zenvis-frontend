@@ -33,6 +33,12 @@
           <el-descriptions-item label="Execution ID" :span="2">
             <span class="mono-text">{{ task.executionId || '-' }}</span>
           </el-descriptions-item>
+          <el-descriptions-item label="来源周期">
+            {{ task.scheduleId ? `#${task.scheduleId}` : '手工创建' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="周期触发时间">
+            {{ formatTime(task.scheduleFireTime) }}
+          </el-descriptions-item>
           <el-descriptions-item label="执行次数">{{ task.runCount }}</el-descriptions-item>
           <el-descriptions-item label="计划时间">
             {{ formatTime(task.scheduledTime, '立即执行') }}
@@ -96,9 +102,7 @@
                 <template #default="{ row }">
                   <el-popover placement="left" :width="520" trigger="click">
                     <template #reference>
-                      <el-button link type="primary" :disabled="!row.result"
-                        >查看结果</el-button
-                      >
+                      <el-button link type="primary" :disabled="!row.result">查看结果</el-button>
                     </template>
                     <pre class="json-content">{{ formatJson(row.result) }}</pre>
                   </el-popover>

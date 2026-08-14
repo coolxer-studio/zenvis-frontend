@@ -11,6 +11,8 @@ export type TAnalysisTaskStatus =
 
 export type TAnalysisTaskApprovalMode = 'AUTO' | 'MANUAL';
 
+export type TAnalysisTaskScheduleType = 'ONCE' | 'CRON';
+
 export type TAnalysisTask = {
   id: number;
   name: string;
@@ -28,6 +30,8 @@ export type TAnalysisTask = {
   skillIds: string[];
   pendingApprovalCount: number;
   scheduledTime: string;
+  scheduleId?: number;
+  scheduleFireTime: string;
   startTime: string;
   finishTime: string;
   runCount: number;
@@ -42,7 +46,10 @@ export type TAnalysisTaskForm = {
   model: string;
   prompt: string;
   priority: number;
+  scheduleType: TAnalysisTaskScheduleType;
   scheduledTime: string;
+  cronExpression: string;
+  enabled: boolean;
   approvalMode: TAnalysisTaskApprovalMode;
   skillIds: string[];
 };
@@ -52,6 +59,7 @@ export type TAnalysisTaskSearch = {
   status?: TAnalysisTaskStatus | '';
   model?: string;
   approvalMode?: TAnalysisTaskApprovalMode | '';
+  scheduleId?: number;
   page: number;
   perPage: number;
 };
@@ -78,6 +86,33 @@ export type TAnalysisTaskSkillOption = {
   value: string;
   description: string;
   agentTypes: string[];
+};
+
+export type TAnalysisTaskSchedule = {
+  id: number;
+  name: string;
+  description: string;
+  model: string;
+  prompt: string;
+  priority: number;
+  approvalMode: TAnalysisTaskApprovalMode;
+  cronExpression: string;
+  enabled: boolean;
+  skillIds: string[];
+  nextFireTime: string;
+  lastFireTime: string;
+  generatedCount: number;
+  lastError: string;
+  createTime: string;
+  updateTime: string;
+  createBy?: number;
+};
+
+export type TAnalysisTaskScheduleSearch = {
+  name?: string;
+  enabled?: boolean | '';
+  page: number;
+  perPage: number;
 };
 
 export type TMcpInvocation = {

@@ -51,6 +51,8 @@ const normalizeTask = (data: RawData): TAnalysisTask => ({
   skillIds: ((data.skill_ids ?? data.skillIds ?? []) as unknown[]).map(String),
   pendingApprovalCount: numberValue(data, 'pending_approval_count', 'pendingApprovalCount'),
   scheduledTime: textValue(data, 'scheduled_time', 'scheduledTime'),
+  scheduleId: numberValue(data, 'schedule_id', 'scheduleId') || undefined,
+  scheduleFireTime: textValue(data, 'schedule_fire_time', 'scheduleFireTime'),
   startTime: textValue(data, 'start_time', 'startTime'),
   finishTime: textValue(data, 'finish_time', 'finishTime'),
   runCount: numberValue(data, 'run_count', 'runCount'),
@@ -69,11 +71,8 @@ const normalizeInvocation = (data: RawData): TMcpInvocation => ({
   approvalScope: textValue(data, 'approval_scope', 'approvalScope'),
   status: textValue(data, 'status'),
   arguments:
-    textValue(data, 'arguments') ||
-    textValue(data, 'arguments_summary', 'argumentsSummary'),
-  result:
-    textValue(data, 'result') ||
-    textValue(data, 'result_summary', 'resultSummary'),
+    textValue(data, 'arguments') || textValue(data, 'arguments_summary', 'argumentsSummary'),
+  result: textValue(data, 'result') || textValue(data, 'result_summary', 'resultSummary'),
   resultLength:
     data.result_length == null && data.resultLength == null
       ? undefined
@@ -106,6 +105,7 @@ export class AnalysisTaskService {
         status: params.status || undefined,
         model: params.model || undefined,
         approvalMode: params.approvalMode || undefined,
+        scheduleId: params.scheduleId || undefined,
         page: params.page,
         perPage: params.perPage,
       },
