@@ -1,6 +1,19 @@
 <template>
-  <div class="dashboard-wrap">
-    <div class="title-bar">系统总览大屏</div>
+  <div class="dashboard-wrap" :class="`theme-${boardTheme}`">
+    <div class="title-bar">系统运行总览</div>
+
+    <div class="theme-switch" role="group" aria-label="大屏主题色">
+      <button
+        v-for="item in themeOptions"
+        :key="item.value"
+        type="button"
+        :class="{ active: boardTheme === item.value }"
+        :aria-pressed="boardTheme === item.value"
+        @click="boardTheme = item.value"
+      >
+        {{ item.label }}
+      </button>
+    </div>
 
     <div class="message-bar">
       <span v-for="item in summaryCards" :key="item.key" class="message-bar-item">
@@ -15,7 +28,7 @@
       <div class="time-bar">
         <h2>
           <strong>{{ overview?.status_description || '状态未知' }}</strong>
-          <span>系统状态综合评估</span>
+          <span>系统综合运行状态</span>
           <b class="logoline"></b>
           <b class="logoline1"></b>
           <b class="logoline2"></b>
@@ -49,15 +62,26 @@
       </div>
 
       <div class="center-area">
+        <div class="area-button">
+          <button
+            v-for="item in rangeOptions"
+            :key="item.value"
+            class="transparent-border-button"
+            :class="{ 'button-active': activeRange === item.value }"
+            type="button"
+            @click="changeRange(item.value)"
+          >
+            {{ item.label }}
+          </button>
+        </div>
         <div class="pandect-area">
-          <span class="pandect-area-left"><b></b></span>
           <div class="pandect-area-center">
             <entity-trend-chart
               :x-axis="statistics?.x_axis || []"
               :series="statistics?.series || []"
+              :theme="boardTheme"
             />
           </div>
-          <span class="pandect-area-right"><b></b></span>
         </div>
         <span v-if="statisticsHint" class="statistics-hint">{{ statisticsHint }}</span>
         <div v-if="statisticsLoading" class="board-state">统计数据加载中...</div>
@@ -80,7 +104,7 @@
               ><b></b>
             </dd>
 
-            <dt>近24小时事件数</dt>
+            <dt>近 24 小时事件</dt>
             <dd>
               <span>{{ serviceHealth.event_count_24h }}</span
               ><b></b>
@@ -97,42 +121,40 @@
 
     <div class="chart-bar">
       <div class="chart-bar-item details1-area">
-        <span class="detailsl-area-left"></span>
         <div class="details1-area-center">
-          <business-service-status-chart :data="overview?.business_service_status || []" />
+          <business-service-status-chart
+            :data="overview?.business_service_status || []"
+            :theme="boardTheme"
+          />
         </div>
-        <span class="detailsl-area-right"></span>
         <div v-if="overviewLoading" class="board-state">系统概览加载中...</div>
         <div v-else-if="overviewError" class="board-state error">系统概览加载失败</div>
       </div>
       <div class="chart-bar-item details2-area">
-        <span class="details2-area-left"></span>
         <div class="details2-area-center">
-          <analysis-task-status-chart :data="overview?.analysis_task_status || []" />
+          <analysis-task-status-chart
+            :data="overview?.analysis_task_status || []"
+            :theme="boardTheme"
+          />
         </div>
-        <span class="details2-area-right"></span>
         <div v-if="overviewLoading" class="board-state">系统概览加载中...</div>
         <div v-else-if="overviewError" class="board-state error">系统概览加载失败</div>
       </div>
     </div>
 
     <div class="bottom-area">
-      <div class="area-button">
-        <button
-          v-for="item in rangeOptions"
-          :key="item.value"
-          class="transparent-border-button"
-          :class="{ 'button-active': activeRange === item.value }"
-          type="button"
-          @click="changeRange(item.value)"
-        >
-          {{ item.label }}
-        </button>
-      </div>
       <div class="area-text">
-        <img class="img-border" :src="leftBorder" alt="" />
+        <div class="ambient-layer" aria-hidden="true">
+          <i></i>
+          <i></i>
+          <i></i>
+        </div>
         <div class="msg-content">
-          <h4>当前信息：</h4>
+          <div class="feed-heading">
+            <span class="live-dot"></span>
+            <h4>运行动态</h4>
+            <small>实时更新</small>
+          </div>
           <div
             ref="textOuterRef"
             class="text-outer"
@@ -143,15 +165,14 @@
               <template v-if="tickerItems.length">
                 <template v-for="copy in tickerItems.length > 1 ? 2 : 1" :key="'ticker-' + copy">
                   <span v-for="item in tickerItems" :key="copy + '-' + item.id" class="text-item">
-                    * {{ item.text }}
+                    {{ item.text }}
                   </span>
                 </template>
               </template>
-              <span v-else class="text-item">* 暂无AI分析任务状态</span>
+              <span v-else class="text-item">暂无最新运行动态</span>
             </div>
           </div>
         </div>
-        <img class="img-border" :src="rightBorder" alt="" />
       </div>
     </div>
   </div>
@@ -170,8 +191,6 @@ import type {
   TSystemNotice,
   TSystemOverviewResponse,
 } from '@/types/type-dashboard';
-import leftBorder from '@a/images/bg01righttext.png';
-import rightBorder from '@a/images/bg02righttext.png';
 import AnalysisTaskStatusChart from './analysis-task-status-chart.vue';
 import BusinessServiceStatusChart from './business-service-status-chart.vue';
 import EntityTrendChart from './entity-trend-chart.vue';
@@ -179,10 +198,19 @@ import EntityTrendChart from './entity-trend-chart.vue';
 defineOptions({ name: 'SystemBoard' });
 
 const rangeOptions: Array<{ label: string; value: TEntityStatisticsRange }> = [
-  { label: '近一天', value: 'TODAY' },
+  { label: '今日', value: 'TODAY' },
   { label: '昨天', value: 'YESTERDAY' },
   { label: '最近7天', value: 'LAST_7_DAYS' },
 ];
+
+type TBoardTheme = 'dark' | 'light';
+
+const themeOptions: Array<{ label: string; value: TBoardTheme }> = [
+  { label: '深色', value: 'dark' },
+  { label: '浅色', value: 'light' },
+];
+
+const boardTheme = ref<TBoardTheme>('light');
 
 const EMPTY_HEALTH: TServiceHealth = {
   ratio: null,
@@ -223,10 +251,10 @@ const formatCount = (value: number | null | undefined) =>
 const summaryCards = computed(() => {
   const summary = overview.value?.summary;
   return [
-    { key: 'entity', label: '实体类型数', value: formatCount(summary?.entity_count), hint: '' },
+    { key: 'entity', label: '实体类型', value: formatCount(summary?.entity_count), hint: '' },
     {
       key: 'push-task',
-      label: '数据推送任务数',
+      label: '数据推送任务',
       value: overview.value?.push_task_source_available
         ? formatCount(summary?.push_task_count)
         : '--',
@@ -234,13 +262,13 @@ const summaryCards = computed(() => {
     },
     {
       key: 'analysis-task',
-      label: 'AI分析任务数',
+      label: 'AI 分析任务',
       value: formatCount(summary?.analysis_task_count),
       hint: '',
     },
     {
       key: 'business-service',
-      label: '业务应用服务数',
+      label: '业务应用服务',
       value: formatCount(summary?.business_service_count),
       hint: '',
     },
@@ -379,8 +407,11 @@ const restartScroll = async () => {
 };
 
 watch(tickerItems, restartScroll, { deep: true });
+watch(boardTheme, value => window.localStorage.setItem('system-board-theme', value));
 
 onMounted(() => {
+  const savedTheme = window.localStorage.getItem('system-board-theme');
+  if (savedTheme === 'dark' || savedTheme === 'light') boardTheme.value = savedTheme;
   updateClock();
   loadOverview();
   loadEntityStatistics();

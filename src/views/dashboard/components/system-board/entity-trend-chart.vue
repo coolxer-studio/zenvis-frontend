@@ -18,10 +18,12 @@ const props = withDefaults(
   defineProps<{
     xAxis?: string[];
     series?: TEntitySeries[];
+    theme?: 'dark' | 'light';
   }>(),
   {
     xAxis: () => [],
     series: () => [],
+    theme: 'dark',
   },
 );
 
@@ -31,41 +33,43 @@ let resizeObserver: ResizeObserver | null = null;
 
 const renderChart = () => {
   if (!chart) return;
+  const textColor = props.theme === 'light' ? '#47556b' : '#b8c4dc';
   const option: EChartsOption = {
     title: {
       top: 10,
-      textStyle: { color: '#fff', fontSize: 14, fontWeight: 'normal' },
+      textStyle: { color: textColor, fontSize: 14, fontWeight: 'normal' },
     },
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'cross', label: { backgroundColor: '#6a7985' } },
+      axisPointer: { type: 'cross', label: { backgroundColor: '#2f5ee5' } },
     },
     legend: {
       type: 'scroll',
       data: props.series.map(item => item.label),
       top: 10,
       right: 20,
-      textStyle: { color: '#fff' },
-      pageTextStyle: { color: '#fff' },
+      textStyle: { color: textColor },
+      pageTextStyle: { color: textColor },
     },
     grid: { top: 60, left: 20, right: 20, bottom: 0, containLabel: true },
     xAxis: {
       type: 'category',
       boundaryGap: false,
       data: props.xAxis,
-      axisLabel: { color: '#fff' },
+      axisLabel: { color: textColor },
     },
     yAxis: {
       type: 'value',
       minInterval: 1,
-      axisLabel: { color: '#fff' },
+      axisLabel: { color: textColor },
     },
-    series: props.series.map(item => ({
+    series: props.series.map((item, index) => ({
       name: item.label,
       type: 'line',
       stack: 'Total',
       data: item.data,
-      areaStyle: {},
+      color: ['#2f5ee5', '#0f9fa3', '#7c5ce5', '#0f9f74', '#d89a20', '#d1435b'][index % 6],
+      areaStyle: { opacity: 0.12 },
       emphasis: { focus: 'series' },
     })),
   };
@@ -80,7 +84,7 @@ onMounted(() => {
   renderChart();
 });
 
-watch(() => [props.xAxis, props.series], renderChart, { deep: true });
+watch(() => [props.xAxis, props.series, props.theme], renderChart, { deep: true });
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
